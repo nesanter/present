@@ -1,0 +1,1 @@
+dmd -ofpresent -Iimport *.d lib/*.a -L-ldl -L-lpoppler-glib

@@ -1,0 +1,1 @@
+dmd -oflib/dpoppler.a -lib import/poppler_glib/*.d lib/*.a -Iimport -L-ldl -L-lpoppler-glib

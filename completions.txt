@@ -1,0 +1,16 @@
+fraction:f,Fraction,frac,\frac{#1;}{#2;},g*,Numerator,numerator,#0;,g*,Denominator,denominator,#0;
+parens:g,(...),(...),\left(#0;\right)
+super:f,Superscript (x^y),x^y,#1;^{#2;},g*,x,x,#0;,g*,y,y,#0;
+sub:f,Subscript (x_y),x_y,#1;_{#2;},g*,x,x,#0;,g*,y,y,#0
+super+sub:f,Superscript/Subscript (x{^y}{_z}),x{^y}{_z},#1;^{#2;}_{#3;},g*,x,x,#0;,g*,y,y,#0;,g*,z,z,#0;
+sqrt:g,Square Root,sqrt,\sqrt{#0;}
+
+integral:f*,Integral,int,\int
+definite integral:f,Definite Integral,defint,\int^{#1;}_{#2;},g*,Lower,lower,#0;,Upper,upper,#0;
+
+*gGrouping
+*bGrouping:fraction,x/y
+*bGrouping:parens,(...)
+*bGrouping:super,x^y
+*bGrouping:sub,x_y
+
