@@ -40,7 +40,7 @@ static import poppler_glib.document;
 static import poppler_glib.page;
 static import gtk.TreeRowReference;
 
-import Content, Present;
+import Content, Present, PresentListingDialog;
 
 enum ContentNodeType {
     ROOT,
@@ -49,7 +49,21 @@ enum ContentNodeType {
     MATH_INLINE,
     MATH_GROUP,
     STATIC,
+    LIST_ITEM,
+    LIST_ENUM,
+    TABLE,
+    TABLE_GROUP,
+    TABLE_ROW,
+    TABLE_CELL,
+    COLUMN_GROUP,
+    COLUMN,
+    LISTING,
+//    ANIMATION,
     DUMMY
+}
+
+struct Borders {
+    bool left, right, above, below;
 }
 
 class ContentNode {
@@ -63,13 +77,27 @@ class ContentNode {
     string custom_display_name,
            custom_inline_name;
 
-    bool editable, inside_math;
+    bool shrink_contents;
+
+    bool /*editable,*/ inside_math;
+    bool invalid;
 
     string latex;
 
     ContentNodeType type;
     ulong id;
     int cid;
+
+    int table_width, table_height;
+    int[2] weight;
+    Borders border = Borders(false, true, false, true);
+
+    bool auto_sized = true;
+    bool top_aligned = true;
+    ulong column_size;
+
+    ListingStyle listing_style;
+
     bool orphan = false;
     bool placed = false;
 
@@ -82,10 +110,28 @@ class ContentNode {
 
     enum accepted_types = [
         ContentNodeType.ROOT : [ ContentNodeType.FRAME ],
-        ContentNodeType.FRAME : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE ],
+        ContentNodeType.FRAME : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                  ContentNodeType.LIST_ITEM, ContentNodeType.LIST_ENUM,
+                                  ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
+                                  ContentNodeType.LISTING ],
         ContentNodeType.MATH : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
+        ContentNodeType.MATH_INLINE : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
         ContentNodeType.MATH_GROUP : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
-        ContentNodeType.STATIC : [ ],
+        ContentNodeType.STATIC : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
+        ContentNodeType.LIST_ITEM : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                      ContentNodeType.TABLE, ContentNodeType.LISTING ],
+        ContentNodeType.LIST_ENUM : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                      ContentNodeType.TABLE, ContentNodeType.LISTING ],
+        ContentNodeType.TABLE : [ ],
+        ContentNodeType.TABLE_GROUP : [ ],
+        ContentNodeType.TABLE_ROW : [ ],
+        ContentNodeType.TABLE_CELL : [ ContentNodeType.MATH_INLINE ],
+        ContentNodeType.COLUMN_GROUP : [ ContentNodeType.COLUMN ],
+        ContentNodeType.COLUMN : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                   ContentNodeType.LIST_ITEM, ContentNodeType.LIST_ENUM,
+                                   ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
+                                   ContentNodeType.LISTING ],
+        ContentNodeType.LISTING : [ ],
         ContentNodeType.DUMMY : [ ]
     ];
 
@@ -96,11 +142,13 @@ class ContentNode {
         this.custom_display_name = custom_display_name;
         this.custom_inline_name = custom_inline_name;
 
+        /*
         if (type == ContentNodeType.ROOT || type == ContentNodeType.STATIC) {
             editable = false;
         } else {
             editable = true;
         }
+        */
 
 //        inline_widget = new gtk.Label.Label(inline_name, false);
 //        inline_widget.setUseMarkup(1);
@@ -152,7 +200,7 @@ class ContentNode {
                 case ContentNodeType.DUMMY:
                     return "";
                 case ContentNodeType.FRAME:
-                    return "\\begin{frame}#0;\\end{frame}\n";
+                    return "\\begin{frame}[fragile"~(shrink_contents ? ",shrink" : "")~"]\n#0;\n\\end{frame}\n";
                 case ContentNodeType.MATH:
                     if (top)
                         return "\\(#0;\\)";
@@ -164,6 +212,36 @@ class ContentNode {
                     return "#0;";
                 case ContentNodeType.STATIC:
                     return "#0;";
+                case ContentNodeType.LIST_ITEM:
+                    if (top)
+                        return "\\begin{frame}[fragile]\n\\begin{easylist}[itemize]\n#0;\n\\end{easylist}\n\\end{frame}\n";
+                    else
+                        return "\\begin{easylist}[itemize]\n#0;\n\\end{easylist}\n";
+                case ContentNodeType.LIST_ENUM:
+                    if (top)
+                        return "\\begin{frame}[fragile]\n\\begin{easylist}[enumerate]\n#0;\n\\end{easylist}\n\\end{frame}\n";
+                    else
+                        return "\\begin{easylist}[enumerate]\n#0;\n\\end{easylist}\n";
+                case ContentNodeType.TABLE:
+                case ContentNodeType.TABLE_GROUP:
+                case ContentNodeType.TABLE_ROW:
+                case ContentNodeType.TABLE_CELL:
+                    return "";
+                case ContentNodeType.COLUMN_GROUP:
+                    if (top)
+                        return "\\begin{frame}[fragile]\n\\begin{columns}["~(top_aligned ? "T" : "c")~"]\n#0;\n\\end{columns}\n\\end{frame}\n";
+                    else
+                        return "\\begin{columns}["~(top_aligned ? "T" : "c")~"]\n#0;\n\\end{columns}\n\\hfill\n";
+                case ContentNodeType.COLUMN:
+                    if (top)
+                        return "#0;";
+                    else
+                        return "\\begin{column}["~(top_aligned ? "T" : "c")~"]{."~to!string(column_size)~"\\textwidth}\n#0;\n\\end{column}\n";
+                case ContentNodeType.LISTING:
+                    if (listing_style is null)
+                        return "\\begin{lstlisting}\n#0;\n\\end{lstlisting}";
+                    else
+                        return "\\begin{lstlisting}"~listing_style.output~"\n#0;\n\\end{lstlisting}";
             }
         }
     }
@@ -195,6 +273,35 @@ class ContentNode {
                 case ContentNodeType.DUMMY:
                     s = "dummy"~to!string(id);
                     break;
+                case ContentNodeType.LIST_ITEM:
+                    s = "Itemized";
+                    break;
+                case ContentNodeType.LIST_ENUM:
+                    s = "Enumerated";
+                    break;
+                case ContentNodeType.TABLE:
+                    s = "Table ["~to!string(table_width)~"x"~to!string(table_height)~"] ("~to!string(weight[0])~"x"~to!string(weight[1])~")";
+                    break;
+                case ContentNodeType.TABLE_GROUP:
+                    s = "Group ["~to!string(table_width)~"x"~to!string(table_height)~"] ("~to!string(weight[0])~"x"~to!string(weight[1])~")";
+                    break;
+                case ContentNodeType.TABLE_ROW:
+                    s = "Row ("~to!string(weight[0])~"x"~to!string(weight[1])~")";
+                    break;
+                case ContentNodeType.TABLE_CELL:
+                    s = "Cell ("~to!string(weight[0])~"x"~to!string(weight[1])~")";
+                    break;
+                case ContentNodeType.COLUMN_GROUP:
+                    s = "Columns";
+                    break;
+                case ContentNodeType.COLUMN:
+                    s = "Column ("~to!string(column_size)~"%)";
+                    break;
+                case ContentNodeType.LISTING:
+                    if (listing_style is null)
+                        s = "Code Listing";
+                    else
+                        s = "Code Listing ("~listing_style.name~")";
             }
         }
 
@@ -203,6 +310,10 @@ class ContentNode {
 
         if (!editable) {
             s = "<i>"~s~"</i>";
+        }
+        
+        if (invalid) {
+            s = "<span color=\"red\">" ~ s ~ "</span>";
         }
 
         return s;
@@ -221,8 +332,6 @@ class ContentNode {
                     s = "frame";
                     break;
                 case ContentNodeType.MATH:
-                    s = "math";
-                    break;
                 case ContentNodeType.MATH_INLINE:
                     s = "math";
                     break;
@@ -235,9 +344,50 @@ class ContentNode {
                 case ContentNodeType.STATIC:
                     s = "static";
                     break;
+                case ContentNodeType.LIST_ITEM:
+                case ContentNodeType.LIST_ENUM:
+                    s = "list";
+                    break;
+                case ContentNodeType.TABLE:
+                    return "table";
+                case ContentNodeType.TABLE_GROUP:
+                    return "group";
+                case ContentNodeType.TABLE_ROW:
+                    return "row";
+                case ContentNodeType.TABLE_CELL:
+                    return "cell";
+                case ContentNodeType.COLUMN_GROUP:
+                    return "columns";
+                case ContentNodeType.COLUMN:
+                    return "column";
+                case ContentNodeType.LISTING:
+                    return "listing";
             }
         }
         return s;
+    }
+
+    @property bool editable() {
+        final switch (type) {
+            case ContentNodeType.ROOT:
+            case ContentNodeType.STATIC:
+            case ContentNodeType.TABLE:
+            case ContentNodeType.TABLE_GROUP:
+            case ContentNodeType.TABLE_ROW:
+            case ContentNodeType.COLUMN_GROUP:
+                return false;
+            case ContentNodeType.FRAME:
+            case ContentNodeType.MATH:
+            case ContentNodeType.MATH_INLINE:
+            case ContentNodeType.MATH_GROUP:
+            case ContentNodeType.LIST_ITEM:
+            case ContentNodeType.LIST_ENUM:
+            case ContentNodeType.TABLE_CELL:
+            case ContentNodeType.DUMMY:
+            case ContentNodeType.COLUMN:
+            case ContentNodeType.LISTING:
+                return true;
+        }
     }
 
     @property string inline_name() {
@@ -301,6 +451,12 @@ class ContentNode {
         string output;
         string sub;
 
+        if (type == ContentNodeType.TABLE) {
+            //special table processing
+            outputTable(f);
+            return;
+        }
+
         if (top && inside_math) {
             templ = "\\("~templ~"\\)";
         }
@@ -345,6 +501,118 @@ class ContentNode {
         if (output.length > 0)
             f.write(output);
     }
+
+    void outputTable(File f) {
+        if (invalid) {
+            f.write("(invalid table)");
+        } else {
+            f.write("\\begin{tabular}{");
+            foreach (c; 0 .. weight[0]) {
+                f.write("c");
+            }
+            f.write("}\n");
+
+            auto flat = flattenTable();
+
+            auto table_borders = getBorders(flat);
+
+            if (border.above)
+                f.write("\\hline\n");
+
+            for (ulong rn = 0; rn < flat.length; rn++) {
+                for (ulong cn = 0; cn < flat[rn].length; ) {
+                    ulong s = 0;
+                    while ((cn+s) < flat[rn].length && table_borders[rn][cn+s].above)
+                        s++;
+                    if (s == 0) {
+                        cn++;
+                    } else {
+                        f.write("\\cline{",cn+1,"-",cn+s,"} ");
+                        cn += s;
+                    }
+                }
+                f.write("\n");
+
+                for (ulong cn = 0; cn < flat[rn].length; ) {
+                    auto cell = flat[rn][cn];
+                    if (cell !is null) {
+                        f.write("\\multicolumn{",cell.weight[0],"}{");
+                        if (cn == 0 && border.left)
+                            f.write("|");
+                        if (table_borders[rn][cn].left)
+                            f.write("|");
+                        f.write("c");
+                        if (table_borders[rn][cn+cell.weight[0]-1].right)
+                            f.write("|");
+                        if ((cn+1) == flat[rn].length && border.right)
+                            f.write("|");
+                        f.write("}{");
+
+                        if (cell.weight[1] > 1) {
+                            f.write("\\multirow{",cell.weight[1],"}{*}{");
+                        }
+
+                        cell.outputBody(f);
+
+                        if (cell.weight[1] > 1) {
+                            f.write("}");
+                        
+                        }
+
+                        f.write("}");
+                        cn += cell.weight[0];
+                    } else {
+                        f.write("\\multicolumn{1}{");
+                        if (cn == 0 && border.left)
+                            f.write("|");
+                        if (table_borders[rn][cn].left)
+                            f.write("|");
+                        f.write("c");
+                        if (table_borders[rn][cn].right)
+                            f.write("|");
+                        if ((cn+1) == flat[rn].length && border.right)
+                            f.write("|");
+                        f.write("}{}");
+                        cn++;
+                    }
+                    if (cn == flat[rn].length)
+                        f.write(" \\\\\n");
+                    else
+                        f.write(" & ");
+                }
+
+                for (ulong cn = 0; cn < flat[rn].length; ) {
+                    ulong s = 0;
+                    while ((cn+s) < flat[rn].length && table_borders[rn][cn+s].below)
+                        s++;
+                    if (s == 0) {
+                        cn++;
+                    } else {
+                        f.write("\\cline{",cn+1,"-",cn+s,"} ");
+                        cn += s;
+                    }
+                }
+                f.write("\n");
+            }
+            f.write("\\end{tabular}\n");
+        }
+    }
+
+    /*
+    void outputTableGroup(File f) {
+        foreach (row; children) {
+            f.writeln("\\hline\n");
+            row.outputTableRow(f);
+        }
+        f.writeln("\\hline\n");
+    }
+
+    void outputTableRow(File f) {
+        foreach (col; children) {
+            if (
+        }
+    }
+    */
 
     void setCID(ContentNode node) {
         int[] cids;
@@ -492,6 +760,16 @@ class ContentNode {
         }
     }
 
+    void clearBuffer() {
+        auto start_iter = new gtk.TextIter.TextIter();
+        auto end_iter = new gtk.TextIter.TextIter();
+
+        buffer.getStartIter(start_iter);
+        buffer.getEndIter(end_iter);
+
+        buffer.delet(start_iter, end_iter);
+    }
+
     /+
     bool addChild(gtk.TextBuffer.TextBuffer buffer, ContentNode node, gtk.TreeStore.TreeStore model, string path) {
         auto new_iter = new gtk.TextIter.TextIter();
@@ -588,29 +866,356 @@ class ContentNode {
     @property ContextType context() {
         final switch (type) {
             case ContentNodeType.ROOT:
-                return ContextType.NONE;
             case ContentNodeType.FRAME:
-                return ContextType.NONE;
             case ContentNodeType.DUMMY:
-                return ContextType.NONE;
-            case ContentNodeType.MATH:
-                return ContextType.MATH;
-            case ContentNodeType.MATH_INLINE:
-                return ContextType.MATH;
-            case ContentNodeType.MATH_GROUP:
-                return ContextType.MATH;
             case ContentNodeType.STATIC:
                 return ContextType.NONE;
+            case ContentNodeType.MATH:
+            case ContentNodeType.MATH_INLINE:
+            case ContentNodeType.MATH_GROUP:
+                return ContextType.MATH;
+            case ContentNodeType.LIST_ITEM:
+            case ContentNodeType.LIST_ENUM:
+                return ContextType.LIST;
+            case ContentNodeType.TABLE:
+            case ContentNodeType.TABLE_GROUP:
+            case ContentNodeType.TABLE_ROW:
+            case ContentNodeType.TABLE_CELL:
+                return ContextType.TABLE;
+            case ContentNodeType.COLUMN_GROUP:
+            case ContentNodeType.COLUMN:
+                return ContextType.COLUMN;
+            case ContentNodeType.LISTING:
+                return ContextType.LISTING;
         }
     }
 
-    bool acceptsNode(ContentNode node) {
+    bool acceptsNodeType(ContentNodeType child_type) {
+        writeln(accepted_types[type]);
         foreach (accepted; accepted_types[type]) {
-            if (accepted == node.type) {
+            if (accepted == child_type) {
                 return true;
             }
         }
         return false;
+    }
+
+    void populateTable(int width, int height) {
+        auto iter = new gtk.TextIter.TextIter();
+        buffer.getStartIter(iter);
+
+        table_width = width;
+        table_height = height;
+
+        border.left = true;
+        border.right = false;
+        border.above = true;
+        border.below = false;
+
+        auto group = app.content.createNode(ContentNodeType.TABLE_GROUP);
+
+        addChild(group, iter);
+
+        group.populateTableGroup(width, height);
+    }
+
+    void populateTableGroup(int width, int height) {
+        table_width = width;
+        table_height = height;
+
+        auto rowiter = new gtk.TextIter.TextIter();
+        auto coliter = new gtk.TextIter.TextIter();
+        buffer.getStartIter(rowiter);
+
+        foreach (row; 0 .. table_height) {
+            auto node = app.content.createNode(ContentNodeType.TABLE_ROW);
+            addChild(node, rowiter);
+
+            node.buffer.getStartIter(coliter);
+            foreach (col; 0 .. table_width) {
+                auto cell = app.content.createNode(ContentNodeType.TABLE_CELL);
+                node.addChild(cell, coliter);
+            }
+        }
+    }
+
+    void resizeTable(int width, int height) {
+        table_width = width;
+        table_height = height;
+    }
+
+    void resizeTableGroup(int width, int height) {
+        if (height < table_height) {
+            foreach (row; height .. table_height) {
+                removeChild(children[row]);
+            }
+            children = children[0 .. height];
+        } else if (height > table_height) {
+            auto rowiter = new gtk.TextIter.TextIter();
+            buffer.getEndIter(rowiter);
+            foreach (row; table_height .. height) {
+                auto node = app.content.createNode(ContentNodeType.TABLE_ROW);
+                addChild(node, rowiter);
+            }
+        }
+
+        if (width < table_width) {
+            foreach (row; 0 .. height) {
+                foreach (col; width .. table_width) {
+                    children[row].removeChild(children[row].children[col]);
+                }
+                children[row].children = children[row].children[0 .. width];
+            }
+        } else {
+            auto coliter = new gtk.TextIter.TextIter();
+            foreach (row; 0 .. height) {
+                children[row].buffer.getEndIter(coliter);
+                while(children[row].children.length < width) {
+                    auto node = app.content.createNode(ContentNodeType.TABLE_CELL);
+                    children[row].addChild(node, coliter);
+                }
+            }
+        }
+
+        table_width = width;
+        table_height = height;
+    }
+
+    int[2] calculateTableWeights() {
+        if (type == ContentNodeType.TABLE_CELL) {
+            weight = [1, 1];
+        } else if (type == ContentNodeType.TABLE_ROW) {
+            int wsum = 0, hmax = 0;
+            foreach (child; children) {
+                auto weights = child.calculateTableWeights();
+                wsum += weights[0];
+                if (weights[1] > hmax)
+                    hmax = weights[1];
+            }
+            foreach (child; children) {
+                if (child.weight[1] < hmax) {
+                    //rebalance
+                    child.balanceTableHeight(hmax);
+                }
+            }
+            weight = [wsum, hmax];
+        } else if (type == ContentNodeType.TABLE_GROUP) {
+            int wmax = 0, hsum = 0;
+            foreach (child; children) {
+                auto weights = child.calculateTableWeights();
+                if (weights[0] > wmax)
+                    wmax = weights[0];
+                hsum += weights[1];
+            }
+            foreach (child; children) {
+                if (child.weight[0] < wmax) {
+                    //rebalance
+                    child.balanceTableWidth(wmax);
+                }
+            }
+            weight = [wmax, hsum];
+        } else if (type == ContentNodeType.TABLE) {
+            weight = children[0].calculateTableWeights();
+        } else {
+            //do nothing
+        }
+        return weight;
+    }
+
+    /*
+    void balanceTable(int width, int height) {
+        if (type == ContentNodeType.TABLE_CELL) {
+            if (width > 0)
+                weight[0] = width;
+            if (height > 0)
+                weight[1] = height;
+        } else if (type == ContentNodeType.TABLE_ROW) {
+            if (width > 0)
+                weight[0] = width;
+            if (height > 0)
+                weight[1] = height;
+
+            foreach (child; children) {
+                child.balanceTable(width, height);
+            }
+        } else if (type == ContentNodeType.TABLE_GROUP) {
+        } else if (type == ContentNodeType.TABLE) {
+            //not sure
+        } else {
+            //do nothing
+        }
+    }
+    */
+
+    void balanceTableWidth(int width) {
+        if (width > weight[0]) {
+            weight[0] = width;
+            foreach (child; children) {
+                child.balanceTableWidth(width);
+            }
+        }
+    }
+
+    void balanceTableHeight(int height) {
+        if (height > weight[1]) {
+            weight[1] = height;
+            foreach (child; children) {
+                 child.balanceTableHeight(height);
+            }
+        }
+    }
+
+    bool tableValid() {
+        if (type == ContentNodeType.TABLE_CELL) {
+            invalid = false;
+            return true;
+        } else if (type == ContentNodeType.TABLE_ROW) {
+            foreach (child; children) {
+                if (!child.tableValid()) {
+                    invalid = true;
+                    return false;
+                }
+            }
+            invalid = false;
+            return true;
+        } else if (type == ContentNodeType.TABLE_GROUP) {
+            ulong sum;
+            foreach (child; children) {
+                if (!child.tableValid()) {
+                    invalid = true;
+                    return false;
+                }
+                sum += child.weight[0] * child.weight[1];
+            }
+            if (sum != weight[0] * weight[1])
+                invalid = true;
+            else
+                invalid = false;
+
+            return !invalid;
+        } else if (type == ContentNodeType.TABLE) {
+            if (children[0].tableValid()) {
+                invalid = false;
+            } else {
+                invalid = true;
+            }
+            return !invalid;
+        } else {
+            return false;
+        }
+    }
+
+    ContentNode findParent(ContentNodeType parent_type) {
+        if (type == parent_type)
+            return this;
+        else if (parent is null)
+            return null;
+        else
+            return parent.findParent(parent_type);
+    }
+
+    /*
+    ContentNode[][] flattenTable() {
+        if (type == ContentNodeType.TABLE) {
+            return children[0].flattenTable();
+        }
+
+        ContentNode[][] table = new ContentNode[][](weight[0], weight[1]);
+        writeln(display_name, " -> ", table);
+        if (type == ContentNodeType.TABLE_CELL) {
+            table[0][0] = this;
+        } else if (type == ContentNodeType.TABLE_ROW) {
+            ulong i;
+            foreach (child; children) {
+                auto subtable = child.flattenTable();
+                writeln("sub = ",subtable);
+                foreach (x; 0 .. subtable.length) {
+                    foreach (y; 0 .. subtable[x].length) {
+                        table[i+x][y] = subtable[x][y];
+                    }
+                }
+                i += subtable.length;
+            }
+        } else if (type == ContentNodeType.TABLE_GROUP) {
+            ulong i;
+            foreach (child; children) {
+                auto subtable = child.flattenTable();
+                writeln("sub = ",subtable);
+                foreach (x; 0 .. subtable.length) {
+                    foreach (y; 0 .. subtable[x].length) {
+                        table[x][i+y] = subtable[x][y];
+                    }
+                }
+                i += subtable[0].length;
+            }
+        }
+        return table;
+    }
+    */
+
+    ContentNode[][] flattenTableGroup() {
+        ContentNode[][] table = new ContentNode[][](weight[1], weight[0]);
+
+        ulong x, y;
+
+        writeln(weight);
+
+        foreach (rn, row; children) {
+            foreach (cn, col; row.children) {
+                if (col.type == ContentNodeType.TABLE_CELL) {
+                    table[y][x] = col;
+                } else if (col.type == ContentNodeType.TABLE_GROUP) {
+                    auto subtable = col.flattenTableGroup();
+                    foreach (i; 0 .. col.weight[0]) {
+                        foreach (j; 0 .. col.weight[1]) {
+                            table[y+j][x+i] = subtable[j][i];
+                        }
+                    }
+                }
+                x += col.weight[0];
+            }
+            x = 0;
+            y += row.weight[1];
+        }
+
+        return table;
+    }
+
+    ContentNode[][] flattenTable() {
+        if (type != ContentNodeType.TABLE)
+            return null;
+
+        return children[0].flattenTableGroup();
+    }
+
+    Borders[][] getBorders(ContentNode[][] flat) {
+        Borders[][] table_borders = new Borders[][](weight[1], weight[0]);
+
+        for (ulong rn = 0; rn < flat.length; rn++) {
+            for (ulong cn = 0; cn < flat[rn].length; cn++) {
+                auto cell = flat[rn][cn];
+                if (cell !is null) {
+                    foreach (i; 0 .. cell.weight[0]) {
+                        if (cell.border.above) {
+                            table_borders[rn][cn+i].above = true;
+                        }
+                        if (cell.border.below) {
+                            table_borders[rn+cell.weight[1]-1][cn+i].below = true;
+                        }
+                    }
+                    foreach (i; 0 .. cell.weight[1]) {
+                        if (cell.border.left) {
+                            table_borders[rn+i][cn].left = true;
+                        }
+                        if (cell.border.right) {
+                            table_borders[rn+i][cn+cell.weight[0]-1].right = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return table_borders;
     }
 
     /*

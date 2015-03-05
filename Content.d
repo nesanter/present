@@ -109,6 +109,11 @@ class Content {
     }
     +/
 
+    auto createNode(ContentNodeType type) {
+        auto node = new ContentNode(type, mark_id++, tag_table);
+        node_by_id[node.id] = node;
+        return node;
+    }
 
     void insertTextAtCursor(string text) {
         if (current_node is null || current_node.type == ContentNodeType.ROOT) {
@@ -121,6 +126,10 @@ class Content {
     }
 
     ContentNode insertNodeAtCursor(ContentNodeType type, bool select, string custom_display_name = "", string custom_inline_name = "") {
+
+        if (!current_node.acceptsNodeType(type))
+            return null;
+
         auto node = new ContentNode(type, mark_id++, tag_table, custom_display_name, custom_inline_name);
         node_by_id[node.id] = node;
 
@@ -144,6 +153,22 @@ class Content {
         }
 
         addToModel(node, old_node, n, select);
+
+        return node;
+    }
+
+    ContentNode insertNodeAtCursor(ContentNode parent, ContentNodeType type, string custom_display_name = "", string custom_inline_name = "") {
+        if (!parent.acceptsNodeType(type))
+            return null;
+
+        auto node = new ContentNode(type, mark_id++, tag_table, custom_display_name, custom_inline_name);
+        node_by_id[node.id] = node;
+
+        auto iter = new gtk.TextIter.TextIter();
+        parent.buffer.getIterAtMark(iter, parent.buffer.getInsert());
+        int n = parent.addChild(node, iter);
+
+        addToModel(node, parent, n, false);
 
         return node;
     }
@@ -181,7 +206,7 @@ class Content {
             return false;
         }
 
-        if (!dest.acceptsNode(source)) {
+        if (!dest.acceptsNodeType(source.type)) {
             writeln("dest does not accept source");
             return false;
         }
@@ -330,6 +355,26 @@ class Content {
         app.tree_view.setCursor(treepath, app.name_column, 0);
     }
 
+    void updateModel(ContentNode node, bool clear = true) {
+        //remove all children
+        if (clear) {
+            auto iter = new gtk.TreeIter.TreeIter();
+            auto child_iter = new gtk.TreeIter.TreeIter();
+            model.getIter(iter, node.path);
+
+            while (model.iterChildren(child_iter, iter) == 1) {
+                model.remove(child_iter);
+            }
+        }
+
+        foreach (int i, child; node.children) {
+            addToModel(child, node, i, false);
+            updateModel(child, false);
+        }
+
+        updateDisplayName(node);
+    }
+
     void updateView(gsv.SourceView.SourceView view) {
         view.setBuffer(current_node.buffer);
         /*
@@ -368,10 +413,15 @@ class Content {
         updateDisplayName(node);
     }
 
-    void updateDisplayName(ContentNode node) {
+    void updateDisplayName(ContentNode node, bool recursive = false) {
         auto iter = new gtk.TreeIter.TreeIter();
         model.getIter(iter, node.path);
         model.setValue(iter, 0, node.display_name);
+        if (recursive) {
+            foreach (child; node.children) {
+                updateDisplayName(child, true);
+            }
+        }
     }
 
     void restoreOrphan(gsv.SourceView.SourceView view) {
@@ -531,14 +581,16 @@ class Content {
 
     void outputPreamble(File f) {
         f.writeln("\\documentclass{beamer}");
-        f.writeln("\\setbeamertemplate{navigation symbols}{}");
         f.writeln("\\usefonttheme[onlymath]{serif}");
+        f.writeln("\\setbeamertemplate{navigation symbols}{}");
+        f.writeln("\\usepackage[at]{easylist}");
+        f.writeln("\\usepackage{multirow}");
+        f.writeln("\\usepackage{graphicx}");
+        f.writeln("\\usepackage{listings}");
     }
 
     void outputPreviewPreamble(File f) {
-        f.writeln("\\documentclass{beamer}");
-        f.writeln("\\setbeamertemplate{navigation symbols}{}");
-        f.writeln("\\usefonttheme[onlymath]{serif}");
+        outputPreamble(f);
         f.writeln("\\usepackage[pdftex,active,tightpage]{preview}");
     }
 
@@ -565,5 +617,4 @@ class Content {
         }
     }
 }
-
 
