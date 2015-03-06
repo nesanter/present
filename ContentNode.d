@@ -810,6 +810,8 @@ class ContentNode {
     }
 
     void buffer_changed_action(gtk.TextBuffer.TextBuffer buffer) {
+        if (context == ContextType.LISTING)
+            return;
         checkSlideMarks();
         checkOrphans();
     }
