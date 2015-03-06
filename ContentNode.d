@@ -51,6 +51,7 @@ enum ContentNodeType {
     STATIC,
     LIST_ITEM,
     LIST_ENUM,
+    LIST_ALPHA,
     TABLE,
     TABLE_GROUP,
     TABLE_ROW,
@@ -101,6 +102,9 @@ class ContentNode {
     bool orphan = false;
     bool placed = false;
 
+    SlideMarker[] slide_marks;
+    ulong slide_mark_count;
+
 //    int[string] children_type_count;
 
 //    string path;
@@ -122,6 +126,8 @@ class ContentNode {
                                       ContentNodeType.TABLE, ContentNodeType.LISTING ],
         ContentNodeType.LIST_ENUM : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
                                       ContentNodeType.TABLE, ContentNodeType.LISTING ],
+        ContentNodeType.LIST_ALPHA : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                       ContentNodeType.TABLE, ContentNodeType.LISTING ],
         ContentNodeType.TABLE : [ ],
         ContentNodeType.TABLE_GROUP : [ ],
         ContentNodeType.TABLE_ROW : [ ],
@@ -222,6 +228,11 @@ class ContentNode {
                         return "\\begin{frame}[fragile]\n\\begin{easylist}[enumerate]\n#0;\n\\end{easylist}\n\\end{frame}\n";
                     else
                         return "\\begin{easylist}[enumerate]\n#0;\n\\end{easylist}\n";
+                case ContentNodeType.LIST_ALPHA:
+                    if (top)
+                        return "\\begin{frame}[fragile]\n\\ListProperties(Numbers1=l,Mark=,FinalMark={)},Progressive=0.5cm)\n\\begin{easylist}\n#0;\n\\end{easylist}\n\\end{frame}\n";
+                    else
+                        return "\\ListProperties(Numbers1=l,Mark=,FinalMark={)},Progressive=0.5cm)\n\\begin{easylist}\n#0;\n\\end{easylist}\n";
                 case ContentNodeType.TABLE:
                 case ContentNodeType.TABLE_GROUP:
                 case ContentNodeType.TABLE_ROW:
@@ -277,7 +288,10 @@ class ContentNode {
                     s = "Itemized";
                     break;
                 case ContentNodeType.LIST_ENUM:
-                    s = "Enumerated";
+                    s = "Numbered";
+                    break;
+                case ContentNodeType.LIST_ALPHA:
+                    s = "Lettered";
                     break;
                 case ContentNodeType.TABLE:
                     s = "Table ["~to!string(table_width)~"x"~to!string(table_height)~"] ("~to!string(weight[0])~"x"~to!string(weight[1])~")";
@@ -346,6 +360,7 @@ class ContentNode {
                     break;
                 case ContentNodeType.LIST_ITEM:
                 case ContentNodeType.LIST_ENUM:
+                case ContentNodeType.LIST_ALPHA:
                     s = "list";
                     break;
                 case ContentNodeType.TABLE:
@@ -382,6 +397,7 @@ class ContentNode {
             case ContentNodeType.MATH_GROUP:
             case ContentNodeType.LIST_ITEM:
             case ContentNodeType.LIST_ENUM:
+            case ContentNodeType.LIST_ALPHA:
             case ContentNodeType.TABLE_CELL:
             case ContentNodeType.DUMMY:
             case ContentNodeType.COLUMN:
@@ -432,16 +448,76 @@ class ContentNode {
         auto mark_iter = new gtk.TextIter.TextIter();
         buffer.getStartIter(iter);
 
+        ulong i = 0;
+        bool start = true;
+        auto slide_mark_iter = new gtk.TextIter.TextIter();
+
+        if (i < slide_mark_count)
+            buffer.getIterAtMark(slide_mark_iter, slide_marks[0].start1_mark);
+
         foreach (child; children_ordered) {
             if (child.orphan)
                 continue;
+            
             buffer.getIterAtMark(mark_iter, buffer.getMark("s"~to!string(child.id)));
+
+            while (i < slide_mark_count && slide_mark_iter.compare(mark_iter) <= 0) {
+                f.write(buffer.getText(iter, slide_mark_iter, false));
+                if (start) {
+                    if (type == ContentNodeType.FRAME) {
+                        f.write("\\begin{"~slide_marks[i].env_keyword~"}<"~slide_marks[i].range~">");
+                    } else {
+                        f.write("\\"~slide_marks[i].keyword~"<"~slide_marks[i].range~">{");
+                    }
+                    start = false;
+                    buffer.getIterAtMark(slide_mark_iter, slide_marks[i].start2_mark);
+                    buffer.getIterAtMark(iter, slide_marks[i].end1_mark);
+                } else {
+                    if (type == ContentNodeType.FRAME) {
+                        f.write("\\end{"~slide_marks[i].env_keyword~"}");
+                    } else {
+                        f.write("}");
+                    }
+                    start = true;
+                    buffer.getIterAtMark(iter, slide_marks[i].end2_mark);
+                    i++;
+                    if (i < slide_marks.length)
+                        buffer.getIterAtMark(slide_mark_iter, slide_marks[i].start1_mark);
+                }
+            }
+
             f.write(buffer.getText(iter, mark_iter, false));
             child.outputLatex(f);
             buffer.getIterAtMark(iter, buffer.getMark("e"~to!string(child.id)));
         }
 
         buffer.getEndIter(mark_iter);
+
+        while (i < slide_mark_count && slide_mark_iter.compare(mark_iter) <= 0) {
+            f.write(buffer.getText(iter, slide_mark_iter, false));
+            if (start) {
+                if (type == ContentNodeType.FRAME) {
+                    f.write("\\begin{"~slide_marks[i].env_keyword~"}<"~slide_marks[i].range~">");
+                } else {
+                    f.write("\\"~slide_marks[i].keyword~"<"~slide_marks[i].range~">{");
+                }
+                start = false;
+                buffer.getIterAtMark(slide_mark_iter, slide_marks[i].start2_mark);
+                buffer.getIterAtMark(iter, slide_marks[i].end1_mark);
+            } else {
+                if (type == ContentNodeType.FRAME) {
+                    f.write("\\end{"~slide_marks[i].env_keyword~"}");
+                } else {
+                    f.write("}");
+                }
+                start = true;
+                buffer.getIterAtMark(iter, slide_marks[i].end2_mark);
+                i++;
+                if (i < slide_marks.length)
+                    buffer.getIterAtMark(slide_mark_iter, slide_marks[i].start1_mark);
+            }
+        }
+
         f.write(buffer.getText(iter, mark_iter, false));
     }
 
@@ -734,6 +810,7 @@ class ContentNode {
     }
 
     void buffer_changed_action(gtk.TextBuffer.TextBuffer buffer) {
+        checkSlideMarks();
         checkOrphans();
     }
 
@@ -757,6 +834,64 @@ class ContentNode {
             } else {
                 app.content.setOrphaned(child, true);
             }
+        }
+    }
+
+    void checkSlideMarks() {
+        auto match1_start = new gtk.TextIter.TextIter();
+        auto match1_end = new gtk.TextIter.TextIter();
+        auto match2_start = new gtk.TextIter.TextIter();
+        auto match2_end = new gtk.TextIter.TextIter();
+        auto match3_start = new gtk.TextIter.TextIter();
+        auto match3_end = new gtk.TextIter.TextIter();
+
+        buffer.getStartIter(match1_start);
+        buffer.getEndIter(match1_end);
+
+        buffer.removeTagByName("onslide-range-tag", match1_start, match1_end);
+//        buffer.removeTagByName("onslide-highlight-tag", match1_start, match1_end);
+
+        buffer.getStartIter(match3_end);
+        
+        ulong i = 0;
+
+        while (match3_end.forwardSearch("<<", gtk.TextIter.GtkTextSearchFlags.TEXT_ONLY, match1_start, match1_end, null) == 1) {
+            if (match1_end.forwardSearch(">(", gtk.TextIter.GtkTextSearchFlags.TEXT_ONLY, match2_start, match2_end, null) == 1) {
+                if (match2_end.forwardSearch(")>", gtk.TextIter.GtkTextSearchFlags.TEXT_ONLY, match3_start, match3_end, null) == 1) {
+                    auto range = buffer.getText(match2_end, match3_start, 0);
+//                    buffer.applyTagByName("onslide-highlight-tag", match1_end, match2_start);
+                    buffer.applyTagByName("onslide-range-tag", match2_end, match3_start);
+                    if (i < slide_marks.length) {
+                        slide_marks[i].active = true;
+                        buffer.moveMark(slide_marks[i].start1_mark, match1_start);
+                        buffer.moveMark(slide_marks[i].start2_mark, match2_start);
+                        buffer.moveMark(slide_marks[i].end1_mark, match1_end);
+                        buffer.moveMark(slide_marks[i].end2_mark, match3_end);
+                        slide_marks[i].setRange(range);
+                    } else {
+                        auto mark = new SlideMarker;
+                        mark.active = true;
+                        mark.setRange(range);
+                        mark.start1_mark = buffer.createMark(null, match1_start, 0);
+                        mark.start2_mark = buffer.createMark(null, match2_start, 0);
+                        mark.end1_mark = buffer.createMark(null, match1_end, 0);
+                        mark.end2_mark = buffer.createMark(null, match3_end, 0);
+                        slide_marks ~= mark;
+                    }
+                    i++;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        
+        slide_mark_count = i;
+
+        while (i < slide_marks.length) {
+            slide_marks[i].active = false;
+            i++;
         }
     }
 
@@ -876,6 +1011,7 @@ class ContentNode {
                 return ContextType.MATH;
             case ContentNodeType.LIST_ITEM:
             case ContentNodeType.LIST_ENUM:
+            case ContentNodeType.LIST_ALPHA:
                 return ContextType.LIST;
             case ContentNodeType.TABLE:
             case ContentNodeType.TABLE_GROUP:
@@ -1302,5 +1438,37 @@ class ContentNode {
 //        dest.moveMark(end_mark, dest_iter);
     }
     +/
+}
+
+
+class SlideMarker {
+    string range, keyword, env_keyword;
+    bool active;
+    gtk.TextMark.TextMark start1_mark, end1_mark,
+                          start2_mark, end2_mark;
+
+    this() {
+        //do nothing
+    }
+
+    void setRange(string s) {
+        if (s.length == 0) {
+            range = "+-";
+            keyword = "visible";
+            env_keyword = "visibleenv";
+        } else if (s.length == 1 && s[0] == '*') {
+            range = "+-";
+            keyword = "only";
+            env_keyword = "onlyenv";
+        } else if (s[0] == '*') {
+            range = s[1..$];
+            keyword = "only";
+            env_keyword = "onlyenv";
+        } else {
+            range = s;
+            keyword = "visible";
+            env_keyword = "visibleenv";
+        }
+    }
 }
 

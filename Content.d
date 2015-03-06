@@ -57,6 +57,7 @@ class Content {
         model = new gtk.TreeStore.TreeStore([gtkc.gobjecttypes.GType.STRING, gtkc.gobjecttypes.GType.INT]);
         tag_table = cast(gtk.TextTagTable.TextTagTable)builder.getObject("editor-tag-table");
         writeln(tag_table.lookup("child-tag"));
+        writeln(tag_table.lookup("onslide-highlight-tag"));
 
 //        root_node = insertNodeAtCursor(ContentNodeType.ROOT);
         root_node = new ContentNode(ContentNodeType.ROOT, mark_id++, tag_table);
@@ -580,7 +581,7 @@ class Content {
     }
 
     void outputPreamble(File f) {
-        f.writeln("\\documentclass{beamer}");
+        f.writeln("\\documentclass[t]{beamer}");
         f.writeln("\\usefonttheme[onlymath]{serif}");
         f.writeln("\\setbeamertemplate{navigation symbols}{}");
         f.writeln("\\usepackage[at]{easylist}");

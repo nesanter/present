@@ -10,6 +10,20 @@
         <property name="foreground">blue</property>
       </object>
     </child>
+    <child type="tag">
+      <object class="GtkTextTag" id="onslide-range-tag">
+        <property name="name">onslide-range-tag</property>
+        <property name="foreground">green</property>
+        <property name="scale">0.75</property>
+        <property name="rise">4</property>
+      </object>
+    </child>
+    <child type="tag">
+      <object class="GtkTextTag" id="onslide-highlight-tag">
+        <property name="name">onslide-highlight-tag</property>
+        <property name="underline">single</property>
+      </object>
+    </child>
   </object>
   <object class="GtkListStore" id="listing-style-editor-properties-model">
     <columns>
@@ -454,10 +468,20 @@
                                 <property name="name">properties.list.type.enumerate</property>
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="label" translatable="yes">_Enumerated</property>
+                                <property name="label" translatable="yes">_Numbered</property>
                                 <property name="use_underline">True</property>
                                 <property name="draw_as_radio">True</property>
                                 <property name="group">properties-list-itemize</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkRadioMenuItem" id="properties-list-alpha">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="label" translatable="yes">_Lettered</property>
+                                <property name="use_underline">True</property>
+                                <property name="draw_as_radio">True</property>
+                                <property name="group">properties-list-enumerate</property>
                               </object>
                             </child>
                           </object>
@@ -702,6 +726,33 @@
           <object class="GtkGrid" id="column-size-dialog-grid">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
           </object>
           <packing>
             <property name="expand">False</property>
@@ -944,6 +995,33 @@
           <object class="GtkGrid" id="table-border-grid">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
           </object>
           <packing>
             <property name="expand">True</property>

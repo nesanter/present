@@ -73,6 +73,12 @@ class PresentPreview {
 
         auto refresh_button = cast(gtk.ToolButton.ToolButton)builder.getObject("preview-refresh");
         refresh_button.addOnClicked(&preview_refresh_action);
+
+        auto next_button = cast(gtk.ToolButton.ToolButton)builder.getObject("preview-next");
+        next_button.addOnClicked(&preview_next_action);
+
+        auto prev_button = cast(gtk.ToolButton.ToolButton)builder.getObject("preview-prev");
+        prev_button.addOnClicked(&preview_prev_action);
     }
 
     void show() {
@@ -95,8 +101,35 @@ class PresentPreview {
 
         n_pages = poppler_glib.document.poppler_document_get_n_pages(current_preview);
 
+        if (n_pages == 0)
+            return;
+
         if (current_page >= n_pages)
             current_page = 0;
+
+        current_preview_page = poppler_glib.document.poppler_document_get_page(current_preview, current_page);
+
+        poppler_glib.page.poppler_page_get_size(current_preview_page, &page_width, &page_height);
+
+        int area_height = drawing_area.getAllocatedHeight();
+        int area_width = drawing_area.getAllocatedWidth();
+
+        hscale = to!double(area_height) / page_height;
+        wscale = to!double(area_width) / page_width;
+
+        drawing_area.queueDrawArea(0, 0, area_width, area_height);
+    }
+
+    void updatePreviewPage() {
+        if (current_preview is null)
+            return;
+
+
+        if (n_pages == 0)
+            return;
+
+        if (current_page >= n_pages)
+            current_page = n_pages - 1;
 
         current_preview_page = poppler_glib.document.poppler_document_get_page(current_preview, current_page);
 
@@ -156,5 +189,14 @@ class PresentPreview {
         wscale = to!double(area_width) / page_width;
     }
 
+    void preview_next_action(gtk.ToolButton.ToolButton button) {
+        current_page++;
+        updatePreviewPage();
+    }
+
+    void preview_prev_action(gtk.ToolButton.ToolButton button) {
+        current_page--;
+        updatePreviewPage();
+    }
 }
 
