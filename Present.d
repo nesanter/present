@@ -3,6 +3,7 @@ import std.conv;
 import std.string;
 import std.exception;
 import std.process;
+import std.file;
 
 static import gtk.Builder;
 static import gtk.Main;
@@ -137,7 +138,8 @@ class Present {
 
     string target_name = "tree";
 
-    string preview_filename = "file:/home/noah/programming/present/out/preview.pdf";
+//    string preview_filename = "file:/home/noah/programming/present/out/preview.pdf";
+    string preview_filename;
     bool preview_ready = true;
 
     void run() {
@@ -156,6 +158,8 @@ class Present {
         init_table_dialog();
         init_column_dialog();
         init_listing_dialog();
+
+        preview_filename = tempDir() ~ "/preview";
 
         ContentNode.ContentNode.init_list_types();
 
@@ -522,7 +526,7 @@ class Present {
     }
 
     bool runLatex() {
-        auto pid = spawnProcess(["pdflatex", "-halt-on-error", "-output-directory=out", "preview.tex"]);
+        auto pid = spawnProcess(["pdflatex", "-halt-on-error", "-output-directory="~tempDir(), "preview.tex"]);
         if (wait(pid) == 0) {
             return true;
         } else {
@@ -531,7 +535,7 @@ class Present {
     }
 
     bool generatePreview() {
-        File previewfile = File("out/preview.tex", "w");
+        File previewfile = File(preview_filename~".tex", "w");
         content.exportLatex(previewfile, content.current_node);
         previewfile.close();
         return runLatex();

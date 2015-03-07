@@ -93,7 +93,7 @@ class PresentPreview {
         if (reset_page)
             current_page = 0;
 
-        current_preview = poppler_glib.document.poppler_document_new_from_file(toStringz(filename), null, null);
+        current_preview = poppler_glib.document.poppler_document_new_from_file(toStringz("file:"~filename~".pdf"), null, null);
         if (current_preview is null) {
             writeln("null");
             return;
