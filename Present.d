@@ -44,7 +44,7 @@ static import poppler_glib.page;
 static import gtk.DragAndDrop;
 static import gdk.Atoms;
 
-import Content, ContentNode, PresentMath, PresentPreview, PresentTableDialog, PresentColumnDialog, PresentListingDialog;
+import Content, ContentNode, PresentMath, PresentPreview, PresentTableDialog, PresentColumnDialog, PresentListingDialog, Loader;
 
 Present app;
 
@@ -119,6 +119,8 @@ class Present {
     gtk.MenuItem.MenuItem properties_column_item;
     gtk.MenuItem.MenuItem properties_listing_item;
 
+    gtk.CheckMenuItem.CheckMenuItem properties_math_inline;
+
     gtk.RadioMenuItem.RadioMenuItem[] properties_list_type_items;
 
     gtk.MenuItem.MenuItem properties_table_size;
@@ -128,6 +130,7 @@ class Present {
 
     gtk.CheckMenuItem.CheckMenuItem frame_shrink_contents;
 
+    gtk.MenuItem.MenuItem content_insert_math;
     gtk.MenuItem.MenuItem[ContentNodeType] insert_items;
 
     bool auto_select;
@@ -187,6 +190,12 @@ class Present {
         auto file_export = cast(gtk.MenuItem.MenuItem)builder.getObject("file-export");
         file_export.addOnActivate(&file_export_action);
 
+        auto file_open = cast(gtk.MenuItem.MenuItem)builder.getObject("file-open");
+        file_open.addOnActivate(&file_open_action);
+
+        auto file_save = cast(gtk.MenuItem.MenuItem)builder.getObject("file-save");
+        file_save.addOnActivate(&file_save_action);
+
 //        auto content_insert = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-item");
 //        content_insert.addOnActivate(&popup_insert_action);
 
@@ -215,10 +224,10 @@ class Present {
 //        auto content_merge = cast(gtk.MenuItem.MenuItem)builder.getObject("content-merge");
 //        content_merge.addOnActivate(&merge_action);
 
-        auto content_insert_math = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-math");
+        content_insert_math = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-math");
         content_insert_math.addOnActivate(&insert_math_action);
-        insert_items[ContentNodeType.MATH] = content_insert_math;
-        insert_items[ContentNodeType.MATH_INLINE] = content_insert_math;
+//        insert_items[ContentNodeType.MATH] = content_insert_math;
+//        insert_items[ContentNodeType.MATH_INLINE] = content_insert_math;
 
         auto content_insert_list = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-list");
         content_insert_list.addOnActivate(&insert_list_action);
@@ -266,7 +275,7 @@ class Present {
 
         properties_math_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-math-item");
 
-        auto properties_math_inline = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-math-inline");
+        properties_math_inline = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-math-inline");
         properties_math_inline.addOnToggled(&properties_math_inline_toggle_action);
 
         properties_list_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-list-item");
@@ -412,6 +421,16 @@ class Present {
                 value.setSensitive(0);
         }
 
+        if (content.current_node.acceptsNodeType(ContentNodeType.MATH)) {
+            content_insert_math.setSensitive(1);
+            content_insert_math.setLabel("Math");
+        } else if (content.current_node.acceptsNodeType(ContentNodeType.MATH_INLINE)) {
+            content_insert_math.setSensitive(1);
+            content_insert_math.setLabel("Math (inline)");
+        } else {
+            content_insert_math.setSensitive(0);
+        }
+
         if (content.current_node.type == ContentNodeType.FRAME) {
             frame_shrink_contents.setSensitive(1);
             frame_shrink_contents.setActive(content.current_node.shrink_contents ? 1 : 0);
@@ -429,6 +448,11 @@ class Present {
         if (content.current_node.context == ContextType.MATH) {
             math_window.enable();
             properties_math_item.setVisible(1);
+            if (content.current_node.type == ContentNodeType.MATH) {
+                properties_math_inline.setActive(0);
+            } else if (content.current_node.type == ContentNodeType.MATH_INLINE) {
+                properties_math_inline.setActive(1);
+            }
         } else {
             math_window.disable();
             main_window.present();
@@ -521,6 +545,14 @@ class Present {
         File f = File("output.tex", "w");
         content.exportLatex(f, null);
         f.close();
+    }
+
+    void file_open_action(gtk.MenuItem.MenuItem item) {
+
+    }
+
+    void file_save_action(gtk.MenuItem.MenuItem item) {
+        Loader.Loader.save(content, "out/test_save");
     }
 
     void popup_insert_action(gtk.MenuItem.MenuItem item) {
@@ -830,13 +862,21 @@ class Present {
     void properties_math_inline_toggle_action(gtk.CheckMenuItem.CheckMenuItem item) {
         if (content.current_node.type == ContentNodeType.MATH) {
             if (item.getActive()) {
-                content.current_node.type = ContentNodeType.MATH_INLINE;
-                content.updateDisplayName(content.current_node);
+                if (content.current_node.parent.acceptsNodeType(ContentNodeType.MATH_INLINE)) {
+                    content.current_node.type = ContentNodeType.MATH_INLINE;
+                    content.updateDisplayName(content.current_node);
+                } else {
+                    item.setActive(0);
+                }
             }
         } else if (content.current_node.type == ContentNodeType.MATH_INLINE) {
             if (!item.getActive()) {
-                content.current_node.type = ContentNodeType.MATH;
-                content.updateDisplayName(content.current_node);
+                if (content.current_node.parent.acceptsNodeType(ContentNodeType.MATH)) {
+                    content.current_node.type = ContentNodeType.MATH;
+                    content.updateDisplayName(content.current_node);
+                } else {
+                    item.setActive(1);
+                }
             }
         }
     }

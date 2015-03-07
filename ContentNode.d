@@ -79,7 +79,7 @@ class ContentNode {
 
 //    int master_start_index, master_end_index;
     gsv.SourceBuffer.SourceBuffer buffer;
-    gtk.TextChildAnchor.TextChildAnchor anchor;
+//    gtk.TextChildAnchor.TextChildAnchor anchor;
 
     string custom_display_name,
            custom_inline_name;
@@ -106,7 +106,7 @@ class ContentNode {
     ListingStyle listing_style;
 
     bool orphan = false;
-    bool placed = false;
+//    bool placed = false;
 
     SlideMarker[] slide_marks;
     ulong slide_mark_count;
@@ -118,7 +118,7 @@ class ContentNode {
 //    string path;
     gtk.TreeRowReference.TreeRowReference reference;
 
-    gtk.Label.Label inline_widget;
+//    gtk.Label.Label inline_widget;
 
     enum accepted_types = [
         ContentNodeType.ROOT : [ ContentNodeType.FRAME ],
@@ -1542,6 +1542,16 @@ class ContentNode {
             node = node.parent;
         }
         return title;
+    }
+
+    string getText() {
+        auto start = new gtk.TextIter.TextIter();
+        auto end = new gtk.TextIter.TextIter();
+
+        buffer.getStartIter(start);
+        buffer.getEndIter(end);
+
+        return buffer.getText(start, end, 1);
     }
 }
 

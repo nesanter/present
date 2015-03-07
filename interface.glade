@@ -68,6 +68,22 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
+                      <object class="GtkMenuItem" id="file-save">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">_Save</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="file-open">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">_Open</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
                       <object class="GtkMenuItem" id="file-export">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
