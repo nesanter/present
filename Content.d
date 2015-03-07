@@ -174,6 +174,19 @@ class Content {
         return node;
     }
 
+    ContentNode insertNodeAtCursor(ContentNode parent, ContentNode child, string custom_display_name = "", string custom_inline_name = "") {
+        if (!parent.acceptsNodeType(child.type))
+            return null;
+
+        auto iter = new gtk.TextIter.TextIter();
+        parent.buffer.getIterAtMark(iter, parent.buffer.getInsert());
+        int n = parent.addChild(child, iter);
+
+        addToModel(child, parent, n, false);
+
+        return child;
+    }
+
     ContentNode insertNodeAtToplevel(ContentNodeType type, bool select) {
         auto node = new ContentNode(type, mark_id++, tag_table);
         node_by_id[node.id] = node;
@@ -189,6 +202,16 @@ class Content {
         root_node.children ~= node;
 
         return node;
+    }
+
+    ContentNode insertNodeAtToplevel(ContentNode child, bool select) {
+        root_node.setCID(child);
+
+        addToModel(child, null, cast(int)root_node.children.length, select);
+
+        root_node.children ~= child;
+
+        return child;
     }
 
     bool moveNodeByID(ulong id, int[] path, int position) {
@@ -616,6 +639,24 @@ class Content {
             f.writeln("\\end{preview}");
             f.writeln("\\end{document}");
         }
+    }
+
+    ContentNode duplicate(ContentNode node, bool copy_text) {
+        auto copy = createNode(node.type);
+
+        if (copy_text) {
+            //copy the text
+        }
+
+        auto iter = new gtk.TextIter.TextIter();
+        copy.buffer.getEndIter(iter);
+
+        foreach (child; node.children) {
+            auto copy_child = duplicate(child, copy_text);
+            copy.addChild(copy_child, iter);
+        }
+
+        return copy;
     }
 }
 

@@ -45,13 +45,17 @@ import Content, Present, PresentListingDialog;
 enum ContentNodeType {
     ROOT,
     FRAME,
+    FRAME_TITLE,
     MATH,
     MATH_INLINE,
     MATH_GROUP,
     STATIC,
+    /*
     LIST_ITEM,
     LIST_ENUM,
     LIST_ALPHA,
+    */
+    LIST,
     TABLE,
     TABLE_GROUP,
     TABLE_ROW,
@@ -59,6 +63,8 @@ enum ContentNodeType {
     COLUMN_GROUP,
     COLUMN,
     LISTING,
+    OVERPRINT,
+    ONSLIDE,
 //    ANIMATION,
     DUMMY
 }
@@ -80,7 +86,7 @@ class ContentNode {
 
     bool shrink_contents;
 
-    bool /*editable,*/ inside_math;
+    bool /*editable,*/ inside_math, supress_animations;
     bool invalid;
 
     string latex;
@@ -105,6 +111,8 @@ class ContentNode {
     SlideMarker[] slide_marks;
     ulong slide_mark_count;
 
+    string list_type;
+
 //    int[string] children_type_count;
 
 //    string path;
@@ -115,31 +123,54 @@ class ContentNode {
     enum accepted_types = [
         ContentNodeType.ROOT : [ ContentNodeType.FRAME ],
         ContentNodeType.FRAME : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
-                                  ContentNodeType.LIST_ITEM, ContentNodeType.LIST_ENUM,
+                                  ContentNodeType.LIST,
                                   ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
-                                  ContentNodeType.LISTING ],
-        ContentNodeType.MATH : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
-        ContentNodeType.MATH_INLINE : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
-        ContentNodeType.MATH_GROUP : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
+                                  ContentNodeType.LISTING, ContentNodeType.FRAME_TITLE,
+                                  ContentNodeType.OVERPRINT ],
+        ContentNodeType.FRAME_TITLE : [ ],
+        ContentNodeType.MATH : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC,
+                                 ContentNodeType.OVERPRINT ],
+        ContentNodeType.MATH_INLINE : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC,
+                                        ContentNodeType.OVERPRINT ],
+        ContentNodeType.MATH_GROUP : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC,
+                                       ContentNodeType.OVERPRINT ],
         ContentNodeType.STATIC : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC ],
+        /*
         ContentNodeType.LIST_ITEM : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
-                                      ContentNodeType.TABLE, ContentNodeType.LISTING ],
+                                      ContentNodeType.TABLE ],
         ContentNodeType.LIST_ENUM : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
-                                      ContentNodeType.TABLE, ContentNodeType.LISTING ],
+                                      ContentNodeType.TABLE ],
         ContentNodeType.LIST_ALPHA : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
                                        ContentNodeType.TABLE, ContentNodeType.LISTING ],
+        */
+        ContentNodeType.LIST : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                 ContentNodeType.TABLE, ContentNodeType.OVERPRINT ],
         ContentNodeType.TABLE : [ ],
         ContentNodeType.TABLE_GROUP : [ ],
         ContentNodeType.TABLE_ROW : [ ],
-        ContentNodeType.TABLE_CELL : [ ContentNodeType.MATH_INLINE ],
+        ContentNodeType.TABLE_CELL : [ ContentNodeType.MATH_INLINE, ContentNodeType.OVERPRINT ],
         ContentNodeType.COLUMN_GROUP : [ ContentNodeType.COLUMN ],
         ContentNodeType.COLUMN : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
-                                   ContentNodeType.LIST_ITEM, ContentNodeType.LIST_ENUM,
+                                   ContentNodeType.LIST,
                                    ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
-                                   ContentNodeType.LISTING ],
+                                   ContentNodeType.LISTING, ContentNodeType.OVERPRINT ],
         ContentNodeType.LISTING : [ ],
+        ContentNodeType.OVERPRINT : [ ContentNodeType.ONSLIDE ],
+        ContentNodeType.ONSLIDE : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
+                                    ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP ],
         ContentNodeType.DUMMY : [ ]
     ];
+
+    static string default_list_type = "Lettered";
+
+    static ListProperties[string] list_properties;
+
+    static void init_list_types() {
+        list_properties = [
+            "Enumerated" : EnumeratedList,
+            "Lettered" : AlphaList
+        ];
+    }
 
     this(ContentNodeType type, ulong id, gtk.TextTagTable.TextTagTable tag_table, string custom_display_name = "", string custom_inline_name = "") {
         this.type = type;
@@ -147,6 +178,10 @@ class ContentNode {
         this.cid = -1;
         this.custom_display_name = custom_display_name;
         this.custom_inline_name = custom_inline_name;
+
+        if (type == ContentNodeType.LIST) {
+            list_type = default_list_type;
+        }
 
         /*
         if (type == ContentNodeType.ROOT || type == ContentNodeType.STATIC) {
@@ -207,6 +242,11 @@ class ContentNode {
                     return "";
                 case ContentNodeType.FRAME:
                     return "\\begin{frame}[fragile"~(shrink_contents ? ",shrink" : "")~"]\n#0;\n\\end{frame}\n";
+                case ContentNodeType.FRAME_TITLE:
+                    if (top)
+                        return "#0;";
+                    else
+                        return "\\frametitle{#0;}\n";
                 case ContentNodeType.MATH:
                     if (top)
                         return "\\(#0;\\)";
@@ -218,6 +258,7 @@ class ContentNode {
                     return "#0;";
                 case ContentNodeType.STATIC:
                     return "#0;";
+                    /*
                 case ContentNodeType.LIST_ITEM:
                     if (top)
                         return "\\begin{frame}[fragile]\n\\begin{easylist}[itemize]\n#0;\n\\end{easylist}\n\\end{frame}\n";
@@ -230,9 +271,15 @@ class ContentNode {
                         return "\\begin{easylist}[enumerate]\n#0;\n\\end{easylist}\n";
                 case ContentNodeType.LIST_ALPHA:
                     if (top)
-                        return "\\begin{frame}[fragile]\n\\ListProperties(Numbers1=l,Mark=,FinalMark={)},Progressive=0.5cm)\n\\begin{easylist}\n#0;\n\\end{easylist}\n\\end{frame}\n";
+                        return "\\begin{frame}[fragile]\n\\ListProperties(Numbers1=l,Mark=,FinalMark={)},Progressive=0.5cm,Hide2=1)\n\\begin{easylist}\n#0;\n\\end{easylist}\n\\end{frame}\n";
                     else
-                        return "\\ListProperties(Numbers1=l,Mark=,FinalMark={)},Progressive=0.5cm)\n\\begin{easylist}\n#0;\n\\end{easylist}\n";
+                        return "\\ListProperties(Numbers1=l,Mark=,FinalMark={)},Progressive=0.5cm,Hide2=2)\n\\begin{easylist}\n#0;\n\\end{easylist}\n";
+                    */
+                case ContentNodeType.LIST:
+                    if (top)
+                        return "\\begin{frame}[fragile]\n"~list_properties[list_type].output~"\n\\begin{easylist}\n#0;\n\\end{easylist}\n\\end{frame}\n";
+                    else
+                        return "\n"~list_properties[list_type].output~"\n\\begin{easylist}\n#0;\n\\end{easylist}\n";
                 case ContentNodeType.TABLE:
                 case ContentNodeType.TABLE_GROUP:
                 case ContentNodeType.TABLE_ROW:
@@ -253,6 +300,10 @@ class ContentNode {
                         return "\\begin{lstlisting}\n#0;\n\\end{lstlisting}";
                     else
                         return "\\begin{lstlisting}"~listing_style.output~"\n#0;\n\\end{lstlisting}";
+                case ContentNodeType.OVERPRINT:
+                    return "\\begin{overprint}[\\textwidth]\n#0;\n\\end{overprint}\n";
+                case ContentNodeType.ONSLIDE:
+                    return "\\onslide*<+>{#0;}\n";
             }
         }
     }
@@ -269,6 +320,9 @@ class ContentNode {
                 case ContentNodeType.FRAME:
                     s = "Frame";
                     break;
+                case ContentNodeType.FRAME_TITLE:
+                    s = "Title";
+                    break;
                 case ContentNodeType.MATH:
                     s = "Math";
                     break;
@@ -284,6 +338,7 @@ class ContentNode {
                 case ContentNodeType.DUMMY:
                     s = "dummy"~to!string(id);
                     break;
+                    /*
                 case ContentNodeType.LIST_ITEM:
                     s = "Itemized";
                     break;
@@ -292,6 +347,10 @@ class ContentNode {
                     break;
                 case ContentNodeType.LIST_ALPHA:
                     s = "Lettered";
+                    break;
+                    */
+                case ContentNodeType.LIST:
+                    s = list_type;
                     break;
                 case ContentNodeType.TABLE:
                     s = "Table ["~to!string(table_width)~"x"~to!string(table_height)~"] ("~to!string(weight[0])~"x"~to!string(weight[1])~")";
@@ -316,6 +375,13 @@ class ContentNode {
                         s = "Code Listing";
                     else
                         s = "Code Listing ("~listing_style.name~")";
+                    break;
+                case ContentNodeType.OVERPRINT:
+                    s = "Overprint";
+                    break;
+                case ContentNodeType.ONSLIDE:
+                    s = "View";
+                    break;
             }
         }
 
@@ -345,6 +411,9 @@ class ContentNode {
                 case ContentNodeType.FRAME:
                     s = "frame";
                     break;
+                case ContentNodeType.FRAME_TITLE:
+                    s = "title";
+                    break;
                 case ContentNodeType.MATH:
                 case ContentNodeType.MATH_INLINE:
                     s = "math";
@@ -358,9 +427,12 @@ class ContentNode {
                 case ContentNodeType.STATIC:
                     s = "static";
                     break;
+                    /*
                 case ContentNodeType.LIST_ITEM:
                 case ContentNodeType.LIST_ENUM:
                 case ContentNodeType.LIST_ALPHA:
+                    */
+                case ContentNodeType.LIST:
                     s = "list";
                     break;
                 case ContentNodeType.TABLE:
@@ -377,6 +449,10 @@ class ContentNode {
                     return "column";
                 case ContentNodeType.LISTING:
                     return "listing";
+                case ContentNodeType.OVERPRINT:
+                    return "overprint";
+                case ContentNodeType.ONSLIDE:
+                    return "view";
             }
         }
         return s;
@@ -390,18 +466,24 @@ class ContentNode {
             case ContentNodeType.TABLE_GROUP:
             case ContentNodeType.TABLE_ROW:
             case ContentNodeType.COLUMN_GROUP:
+            case ContentNodeType.OVERPRINT:
                 return false;
             case ContentNodeType.FRAME:
+            case ContentNodeType.FRAME_TITLE:
             case ContentNodeType.MATH:
             case ContentNodeType.MATH_INLINE:
             case ContentNodeType.MATH_GROUP:
+            /*
             case ContentNodeType.LIST_ITEM:
             case ContentNodeType.LIST_ENUM:
             case ContentNodeType.LIST_ALPHA:
+            */
+            case ContentNodeType.LIST:
             case ContentNodeType.TABLE_CELL:
             case ContentNodeType.DUMMY:
             case ContentNodeType.COLUMN:
             case ContentNodeType.LISTING:
+            case ContentNodeType.ONSLIDE:
                 return true;
         }
     }
@@ -721,6 +803,9 @@ class ContentNode {
             node.inside_math = true;
         }
 
+        if (supress_animations || context == ContextType.ANIM_GROUP) {
+            node.supress_animations = true;
+        }
         
         auto start_mark = new gtk.TextMark.TextMark("s"~to!string(node.id), 1);
         auto end_mark = new gtk.TextMark.TextMark("e"~to!string(node.id), 1);
@@ -813,7 +898,8 @@ class ContentNode {
         if (context == ContextType.LISTING)
             return;
         checkSlideMarks();
-        checkOrphans();
+        if (!supress_animations)
+            checkOrphans();
     }
 
     void checkOrphans() {
@@ -1004,16 +1090,21 @@ class ContentNode {
         final switch (type) {
             case ContentNodeType.ROOT:
             case ContentNodeType.FRAME:
+            case ContentNodeType.FRAME_TITLE:
             case ContentNodeType.DUMMY:
             case ContentNodeType.STATIC:
+            case ContentNodeType.ONSLIDE:
                 return ContextType.NONE;
             case ContentNodeType.MATH:
             case ContentNodeType.MATH_INLINE:
             case ContentNodeType.MATH_GROUP:
                 return ContextType.MATH;
+            /*
             case ContentNodeType.LIST_ITEM:
             case ContentNodeType.LIST_ENUM:
             case ContentNodeType.LIST_ALPHA:
+            */
+            case ContentNodeType.LIST:
                 return ContextType.LIST;
             case ContentNodeType.TABLE:
             case ContentNodeType.TABLE_GROUP:
@@ -1025,11 +1116,13 @@ class ContentNode {
                 return ContextType.COLUMN;
             case ContentNodeType.LISTING:
                 return ContextType.LISTING;
+            case ContentNodeType.OVERPRINT:
+                return ContextType.ANIM_GROUP;
         }
     }
 
     bool acceptsNodeType(ContentNodeType child_type) {
-        writeln(accepted_types[type]);
+//        writeln(accepted_types[type]);
         foreach (accepted; accepted_types[type]) {
             if (accepted == child_type) {
                 return true;
@@ -1440,6 +1533,16 @@ class ContentNode {
 //        dest.moveMark(end_mark, dest_iter);
     }
     +/
+
+    string buildTitle() {
+        string title = short_name;
+        ContentNode node = parent;
+        while (node !is null) {
+            title = node.short_name ~ "/" ~ title;
+            node = node.parent;
+        }
+        return title;
+    }
 }
 
 
@@ -1471,6 +1574,49 @@ class SlideMarker {
             keyword = "visible";
             env_keyword = "visibleenv";
         }
+    }
+}
+
+enum AlphaList = ListProperties([
+        "Numbers1" : "l",
+        "Numbers2" : "a",
+        "FinalMark1" : "{)}",
+        "FinalMark2" : ".",
+        "Mark" : "",
+        "Progressive" : "0.5cm",
+        "Hide2" : "1"
+]);
+
+enum EnumeratedList = ListProperties([
+        "Numbers1" : "a",
+        "Numbers2" : "l",
+        "FinalMark1" : ".",
+        "FinalMark2" : "{)}",
+        "Mark" : "",
+        "Progressive" : "0.5cm",
+        "Hide2" : "1"
+]);
+
+
+struct ListProperties {
+    string[string] properties;
+    
+    this(string[string] properties) {
+        this.properties = properties;
+    }
+
+    @properties string output() {
+        string s = "\\ListProperties(";
+        bool comma = false;
+        foreach (key, value; properties) {
+            if (comma)
+                s ~= ",";
+            else
+                comma = true;
+            s ~= key ~ "=" ~ value;
+        }
+        writeln(s);
+        return s ~ ")";
     }
 }
 

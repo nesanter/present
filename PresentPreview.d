@@ -104,7 +104,7 @@ class PresentPreview {
         if (n_pages == 0)
             return;
 
-        if (current_page >= n_pages)
+        if (current_page >= n_pages || current_page < 0)
             current_page = 0;
 
         current_preview_page = poppler_glib.document.poppler_document_get_page(current_preview, current_page);
@@ -130,6 +130,9 @@ class PresentPreview {
 
         if (current_page >= n_pages)
             current_page = n_pages - 1;
+
+        if (current_page < 0)
+            current_page = 0;
 
         current_preview_page = poppler_glib.document.poppler_document_get_page(current_preview, current_page);
 

@@ -76,7 +76,7 @@
                       </object>
                     </child>
                     <child>
-                      <object class="GtkSeparatorMenuItem" id="separatormenuitem1">
+                      <object class="GtkSeparatorMenuItem" id="separator7">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                       </object>
@@ -135,14 +135,6 @@
                         <property name="label" translatable="yes">_New</property>
                         <property name="use_underline">True</property>
                         <accelerator key="n" signal="activate" modifiers="GDK_CONTROL_MASK"/>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkMenuItem" id="frame-append">
-                        <property name="visible">True</property>
-                        <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">A_ppend</property>
-                        <property name="use_underline">True</property>
                       </object>
                     </child>
                     <child>
@@ -219,7 +211,6 @@
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">_Duplicate</property>
                         <property name="use_underline">True</property>
-                        <accelerator key="d" signal="activate" modifiers="GDK_SHIFT_MASK | GDK_CONTROL_MASK"/>
                       </object>
                     </child>
                     <child>
@@ -229,19 +220,19 @@
                       </object>
                     </child>
                     <child>
-                      <object class="GtkMenuItem" id="frame-move-up">
+                      <object class="GtkMenuItem" id="frame-previous">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Move Frame _Up</property>
+                        <property name="label" translatable="yes">Previous</property>
                         <property name="use_underline">True</property>
                         <accelerator key="Page_Up" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                       </object>
                     </child>
                     <child>
-                      <object class="GtkMenuItem" id="frame-move-down">
+                      <object class="GtkMenuItem" id="frame-next">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Move Frame Do_wn</property>
+                        <property name="label" translatable="yes">Next</property>
                         <property name="use_underline">True</property>
                         <accelerator key="Page_Down" signal="activate" modifiers="GDK_CONTROL_MASK"/>
                       </object>
@@ -347,15 +338,24 @@
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                             <child>
-                              <object class="GtkMenuItem" id="content-animate-onslide">
+                              <object class="GtkMenuItem" id="content-animate-overprint">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="label" translatable="yes">_On Slide</property>
+                                <property name="label" translatable="yes">_Overprint</property>
                                 <property name="use_underline">True</property>
                               </object>
                             </child>
                           </object>
                         </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="content-duplicate">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Du_plicate</property>
+                        <property name="use_underline">True</property>
+                        <accelerator key="d" signal="activate" modifiers="GDK_SHIFT_MASK | GDK_CONTROL_MASK"/>
                       </object>
                     </child>
                     <child>
@@ -454,7 +454,7 @@
                             <property name="can_focus">False</property>
                             <child>
                               <object class="GtkRadioMenuItem" id="properties-list-itemize">
-                                <property name="name">properties.list.type.itemize</property>
+                                <property name="name">properties.list.type.Itemized</property>
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
                                 <property name="label" translatable="yes">_Itemized</property>
@@ -465,7 +465,7 @@
                             </child>
                             <child>
                               <object class="GtkRadioMenuItem" id="properties-list-enumerate">
-                                <property name="name">properties.list.type.enumerate</property>
+                                <property name="name">properties.list.type.Enumerated</property>
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
                                 <property name="label" translatable="yes">_Numbered</property>
@@ -476,6 +476,7 @@
                             </child>
                             <child>
                               <object class="GtkRadioMenuItem" id="properties-list-alpha">
+                                <property name="name">properties.list.type.Lettered</property>
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
                                 <property name="label" translatable="yes">_Lettered</property>

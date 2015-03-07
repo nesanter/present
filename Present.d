@@ -70,7 +70,8 @@ enum ContextType {
     LIST,
     TABLE,
     COLUMN,
-    LISTING
+    LISTING,
+    ANIM_GROUP
 }
 
 extern (C) void main_window_present_cb() {
@@ -118,12 +119,16 @@ class Present {
     gtk.MenuItem.MenuItem properties_column_item;
     gtk.MenuItem.MenuItem properties_listing_item;
 
+    gtk.RadioMenuItem.RadioMenuItem[] properties_list_type_items;
+
     gtk.MenuItem.MenuItem properties_table_size;
     gtk.CheckMenuItem.CheckMenuItem properties_table_group;
 
     gtk.CheckMenuItem.CheckMenuItem properties_column_align;
 
     gtk.CheckMenuItem.CheckMenuItem frame_shrink_contents;
+
+    gtk.MenuItem.MenuItem[ContentNodeType] insert_items;
 
     bool auto_select;
 
@@ -148,6 +153,8 @@ class Present {
         init_table_dialog();
         init_column_dialog();
         init_listing_dialog();
+
+        ContentNode.ContentNode.init_list_types();
 
         updateContext();
 
@@ -194,30 +201,50 @@ class Present {
 
         auto frame_add_title = cast(gtk.MenuItem.MenuItem)builder.getObject("frame-add-title");
         frame_add_title.addOnActivate(&frame_add_title_action);
+        insert_items[ContentNodeType.FRAME_TITLE] = frame_add_title;
 
         frame_shrink_contents = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("frame-shrink");
         frame_shrink_contents.addOnToggled(&frame_shrink_contents_action);
+
+        auto frame_previous = cast(gtk.MenuItem.MenuItem)builder.getObject("frame-previous");
+        auto frame_next = cast(gtk.MenuItem.MenuItem)builder.getObject("frame-next");
+
+        frame_previous.addOnActivate(&frame_previous_action);
+        frame_next.addOnActivate(&frame_next_action);
 
 //        auto content_merge = cast(gtk.MenuItem.MenuItem)builder.getObject("content-merge");
 //        content_merge.addOnActivate(&merge_action);
 
         auto content_insert_math = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-math");
         content_insert_math.addOnActivate(&insert_math_action);
+        insert_items[ContentNodeType.MATH] = content_insert_math;
+        insert_items[ContentNodeType.MATH_INLINE] = content_insert_math;
 
         auto content_insert_list = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-list");
         content_insert_list.addOnActivate(&insert_list_action);
+        insert_items[ContentNodeType.LIST] = content_insert_list;
 
         auto content_insert_table = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-table");
         content_insert_table.addOnActivate(&insert_table_action);
+        insert_items[ContentNodeType.TABLE] = content_insert_table;
 
         auto content_insert_columns = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-columns");
         content_insert_columns.addOnActivate(&insert_columns_action);
+        insert_items[ContentNodeType.COLUMN_GROUP] = content_insert_columns;
 
         auto content_insert_listing = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-listing");
         content_insert_listing.addOnActivate(&insert_listing_action);
+        insert_items[ContentNodeType.LISTING] = content_insert_listing;
+
+        auto content_animate_overprint = cast(gtk.MenuItem.MenuItem)builder.getObject("content-animate-overprint");
+        content_animate_overprint.addOnActivate(&insert_overprint_action);
+        insert_items[ContentNodeType.OVERPRINT] = content_animate_overprint;
 
         auto content_remove = cast(gtk.MenuItem.MenuItem)builder.getObject("content-remove");
         content_remove.addOnActivate(&content_remove_action);
+
+        auto content_duplicate = cast (gtk.MenuItem.MenuItem)builder.getObject("content-duplicate");
+        content_duplicate.addOnActivate(&content_duplicate_action);
 
 //        auto content_show_master = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("content-show-master");
 //        content_show_master.addOnToggled(&show_master_action);
@@ -246,8 +273,16 @@ class Present {
         
         auto properties_list_itemize = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-itemize");
         auto properties_list_enumerate = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-enumerate");
+        auto properties_list_alpha = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-alpha");
         properties_list_itemize.addOnActivate(&properties_list_type_change_action);
         properties_list_enumerate.addOnActivate(&properties_list_type_change_action);
+        properties_list_alpha.addOnActivate(&properties_list_type_change_action);
+
+        properties_list_type_items = [
+            properties_list_itemize,
+            properties_list_enumerate,
+            properties_list_alpha
+        ];
 
         properties_table_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-item");
 
@@ -362,10 +397,19 @@ class Present {
 
     void updateContext() {
 
+        main_window.setTitle("Present - "~content.current_node.buildTitle());
+
         if (content.current_node.editable) {
             editor.setEditable(1);
         } else {
             editor.setEditable(0);
+        }
+
+        foreach (key, value; insert_items) {
+            if (content.current_node.acceptsNodeType(key))
+                value.setSensitive(1);
+            else
+                value.setSensitive(0);
         }
 
         if (content.current_node.type == ContentNodeType.FRAME) {
@@ -393,6 +437,12 @@ class Present {
         }
 
         if (content.current_node.context == ContextType.LIST) {
+            foreach (item; properties_list_type_items) {
+                if (item.getName() == "properties.list.type."~content.current_node.list_type) {
+                    item.setActive(1);
+                    break;
+                }
+            }
             properties_list_item.setVisible(1);
         } else {
             properties_list_item.setVisible(0);
@@ -495,14 +545,20 @@ class Present {
     }
 
     void remove_frame_action(gtk.MenuItem.MenuItem item) {
+        /*
         auto path = content.current_node.path;
         while (path.getDepth() > 1) {
             path.up();
         }
         auto frame = content.getNodeFromPath(path);
+        */
+
+        auto frame = content.current_node.findParent(ContentNodeType.FRAME);
+        if (frame is null)
+            return;
 
         content.removeFromModel(frame);
-        
+
         foreach (i, child; content.root_node.children) {
             if (child == frame) {
                 if ((i+1) == content.root_node.children.length) {
@@ -519,9 +575,17 @@ class Present {
         updateContext();
     }
 
-    
     void frame_add_title_action(gtk.MenuItem.MenuItem item) {
-//        auto node = content.insertNodeAtCursor(Conte
+        auto node = content.insertNodeAtCursor(ContentNodeType.FRAME_TITLE, auto_select);
+        if (node is null)
+            return;
+
+        if (auto_select) {
+            editor.setBuffer(content.current_node.buffer);
+            updateContext();
+        } else {
+            content.updateView(editor);
+        }
     }
 
     void frame_shrink_contents_action(gtk.CheckMenuItem.CheckMenuItem item) {
@@ -529,6 +593,34 @@ class Present {
             return;
 
         content.current_node.shrink_contents = item.getActive() == 1;
+    }
+
+    void frame_previous_action(gtk.MenuItem.MenuItem item) {
+        auto frame = content.current_node.findParent(ContentNodeType.FRAME);
+        if (frame is null)
+            return;
+
+        auto indices = frame.path.getIndices();
+
+        if (indices[0] > 0) {
+            content.current_node = content.root_node.children[indices[0]-1];
+            viewCurrent();
+            updateContext();
+        }
+    }
+
+    void frame_next_action(gtk.MenuItem.MenuItem item) {
+        auto frame = content.current_node.findParent(ContentNodeType.FRAME);
+        if (frame is null)
+            return;
+
+        auto indices = frame.path.getIndices();
+
+        if (indices[0]+1 < content.root_node.children.length) {
+            content.current_node = content.root_node.children[indices[0]+1];
+            viewCurrent();
+            updateContext();
+        }
     }
 
     void insert_math_action(gtk.MenuItem.MenuItem item) {
@@ -545,7 +637,7 @@ class Present {
     }
 
     void insert_list_action(gtk.MenuItem.MenuItem item) {
-        auto node = content.insertNodeAtCursor(ContentNodeType.LIST_ITEM, auto_select);
+        auto node = content.insertNodeAtCursor(ContentNodeType.LIST, auto_select);
         if (auto_select) {
             editor.setBuffer(content.current_node.buffer);
             updateContext();
@@ -592,6 +684,22 @@ class Present {
 
         if (auto_select) {
             editor.setBuffer(content.current_node.buffer);
+            updateContext();
+        }
+    }
+
+    void insert_overprint_action(gtk.MenuItem.MenuItem item) {
+        auto node = content.insertNodeAtCursor(ContentNodeType.OVERPRINT, auto_select);
+
+        if (node is null)
+            return;
+
+        foreach (i; 0 .. 2) {
+            auto view = content.insertNodeAtCursor(node, ContentNodeType.ONSLIDE);
+        }
+
+        if (auto_select) {
+            viewCurrent();
             updateContext();
         }
     }
@@ -651,6 +759,30 @@ class Present {
         }
     }
     */
+
+    void content_duplicate_action(gtk.MenuItem.MenuItem item) {
+        auto parent = content.current_node.parent;
+
+        ContentNode copy;
+
+        if (content.current_node.type == ContentNodeType.FRAME) {
+            copy = content.duplicate(content.current_node, true);
+            content.insertNodeAtToplevel(copy, auto_select);
+        } else if (parent !is null && parent.editable) {
+            copy = content.duplicate(content.current_node, true);
+            content.insertNodeAtCursor(parent, copy);
+        } else {
+            return;
+        }
+
+        content.updateModel(copy);
+
+        if (auto_select) {
+            content.current_node = copy;
+            viewCurrent();
+            updateContext();
+        }
+    }
 
     void content_descend_action(gtk.MenuItem.MenuItem item) {
         content.descend();
@@ -713,19 +845,16 @@ class Present {
         if (content.current_node.context != ContextType.LIST)
             return;
 
-        writeln(item.getName());
+        string name = item.getName();
 
-        switch (item.getName()) {
-            case "properties.list.type.itemize":
-                content.current_node.type = ContentNodeType.LIST_ITEM;
-                break;
-            case "properties.list.type.enumerate":
-                content.current_node.type = ContentNodeType.LIST_ENUM;
-                break;
-            default:
-                return;
-        }
+//        writeln(name);
 
+        long index = lastIndexOf(name, ".");
+
+        if (index == -1)
+            return;
+
+        content.current_node.list_type = name[index+1 .. $];
         content.updateDisplayName(content.current_node);
     }
 
@@ -848,7 +977,7 @@ class Present {
         auto iter = s.getSelected();
         auto path = iter.getTreePath();
         auto node = content.getNodeFromPath(path);
-        writeln(node);
+//        writeln(node);
 //        selection.dataSetText(to!string(node.id));
         selection.dataSet(gdk.Atoms.atomIntern("string", 0), 8, cast(char[])to!string(node.id));
     }
@@ -858,18 +987,18 @@ class Present {
         gtk.TreePath.TreePath path;
         gtkc.gtktypes.GtkTreeViewDropPosition pos;
         auto result = tree_view.getDestRowAtPos(x, y, path, pos);
-        writeln(path);
-        writeln("result = ",result);
-        writeln(pos);
-        writeln("data = ",data);
+//        writeln(path);
+//        writeln("result = ",result);
+//        writeln(pos);
+//        writeln("data = ",data);
 
 
         bool moved;
 
         if (result == 1) {
             auto indices = path.getIndices();
-            writeln(indices);
-            writeln(indices[0 .. $-1], indices[$-1]);
+//            writeln(indices);
+//            writeln(indices[0 .. $-1], indices[$-1]);
 
             final switch (pos) {
                 case gtkc.gtktypes.GtkTreeViewDropPosition.BEFORE:
