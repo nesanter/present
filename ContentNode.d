@@ -167,6 +167,7 @@ class ContentNode {
 
     static void init_list_types() {
         list_properties = [
+            "Itemized" : ItemizedList,
             "Enumerated" : EnumeratedList,
             "Lettered" : AlphaList
         ];
@@ -1605,6 +1606,15 @@ enum EnumeratedList = ListProperties([
         "Mark" : "",
         "Progressive" : "0.5cm",
         "Hide2" : "1"
+]);
+
+enum ItemizedList = ListProperties([
+        "Style1*" : "\\textbullet\\hskip .5em",
+        "Style2*" : "--\\hskip .5em",
+        "Mark" : "",
+        "Progressive" : "0.5cm",
+        "Hang" : "true",
+        "Hide" : "1000"
 ]);
 
 
