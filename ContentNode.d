@@ -303,7 +303,7 @@ class ContentNode {
                 case ContentNodeType.OVERPRINT:
                     return "\\begin{overprint}[\\textwidth]\n#0;\n\\end{overprint}\n";
                 case ContentNodeType.ONSLIDE:
-                    return "\\onslide*<+>{#0;}\n";
+                    return "\\onslide<+>\n#0;\n";
             }
         }
     }
