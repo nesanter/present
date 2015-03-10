@@ -577,7 +577,7 @@ class Present {
     }
 
     void file_save_action(gtk.MenuItem.MenuItem item) {
-        Loader.Loader.save(content, "out/test_save");
+        Loader.Loader.save(content, tempDir()~"/test_save");
     }
 
     void popup_insert_action(gtk.MenuItem.MenuItem item) {

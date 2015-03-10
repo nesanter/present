@@ -1,5 +1,6 @@
 import std.stdio;
 import std.exception;
+import std.string;
 
 import Present, Content, ContentNode;
 
@@ -13,7 +14,7 @@ class Loader {
         }
 
         f.writeln("<content>");
-        saveNode(f, c.root_node);
+        saveNode(f, c.root_node, 1);
         f.writeln("</content>");
 
         return true;
@@ -23,14 +24,15 @@ class Loader {
         return false;
     }
 
-    private static void saveNode(File f, ContentNode node) {
+    private static void saveNode(File f, ContentNode node, ulong depth) {
+        writeIndent(f, depth++);
         f.writeln("<node>");
-        writeProperty(f, "type", node.type);
-        writeProperty(f, "id", node.id);
-        writeProperty(f, "cid", node.cid);
+        writeProperty(f, "type", node.type, depth);
+        writeProperty(f, "id", node.id, depth);
+        writeProperty(f, "cid", node.cid, depth);
 
         if (node.latex.length > 0) {
-            writeProperty(f, "latex", node.latex);
+            writeProperty(f, "latex", node.latex, depth);
         }
 
         final switch (node.context) {
@@ -39,45 +41,66 @@ class Loader {
             case ContextType.ANIM_GROUP:
                 break;
             case ContextType.LIST:
-                writeProperty(f, "list_type", node.list_type);
+                writeProperty(f, "list_type", node.list_type, depth);
                 break;
             case ContextType.TABLE:
-                writeProperty(f, "table_width", node.table_width);
-                writeProperty(f, "table_height", node.table_height);
-                writeProperty(f, "weight", node.weight);
-                writeProperty(f, "border_left", node.border.left);
-                writeProperty(f, "border_right", node.border.right);
-                writeProperty(f, "border_above", node.border.above);
-                writeProperty(f, "border_below", node.border.below);
+                writeProperty(f, "table_width", node.table_width, depth);
+                writeProperty(f, "table_height", node.table_height, depth);
+                writeProperty(f, "weight", node.weight, depth);
+                writeProperty(f, "border_left", node.border.left, depth);
+                writeProperty(f, "border_right", node.border.right, depth);
+                writeProperty(f, "border_above", node.border.above, depth);
+                writeProperty(f, "border_below", node.border.below, depth);
                 break;
             case ContextType.COLUMN:
-                writeProperty(f, "auto_sized", node.auto_sized);
-                writeProperty(f, "top_aligned", node.top_aligned);
-                writeProperty(f, "column_size", node.column_size);
+                writeProperty(f, "auto_sized", node.auto_sized, depth);
+                writeProperty(f, "top_aligned", node.top_aligned, depth);
+                writeProperty(f, "column_size", node.column_size, depth);
                 break;
             case ContextType.LISTING:
-                writeProperty(f, "listing_tyle", node.listing_style.name);
+                writeProperty(f, "listing_tyle", node.listing_style.name, depth);
                 break;
             case ContextType.TIKZ:
-                writeProperty(f, "tikz_properties", node.tikz_properties);
                 break;
         }
 
         if (node.editable) {
             string text = node.getText();
+            /*
             f.writeln("<text ",text.length,">");
             f.writeln(text);
             f.writeln("</text>");
+            */
+            writeTextProperty(f, "text", text, depth);
         }
 
         foreach (child; node.children) {
-            saveNode(f, child);
+            saveNode(f, child, depth);
         }
 
+        writeIndent(f, --depth);
         f.writeln("</node>");
     }
 
-    private static void writeProperty(T)(File f, string property, T value) {
+    private static void writeIndent(File f, ulong depth) {
+        foreach (n; 0 .. depth)
+            f.write("  ");
+    } 
+
+    private static void writeProperty(T)(File f, string property, T value, ulong depth) {
+        writeIndent(f, depth);
         f.writeln("<",property,">",value,"</",property,">");
+    }
+
+    private static void writeTextProperty(File f, string property, string text, ulong depth) {
+        writeIndent(f, depth);
+        f.writeln("<",property," ",text.length,">");
+        auto split = splitLines(text);
+        foreach (line; split) {
+            writeIndent(f, depth+1);
+            f.writeln("|",line);
+        }
+        writeIndent(f, depth);
+        f.writeln("</",property,">");
     }
 }
