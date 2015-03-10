@@ -63,9 +63,14 @@ enum ContentNodeType {
     COLUMN_GROUP,
     COLUMN,
     LISTING,
+    GRAPHIC,
+    PROPERTY,
     OVERPRINT,
     ONSLIDE,
 //    ANIMATION,
+    TIKZ_PICTURE,
+    TIKZ_ELEMENT,
+    TIKZ_TEXT_ELEMENT,
     DUMMY
 }
 
@@ -113,6 +118,8 @@ class ContentNode {
 
     string list_type;
 
+    string tikz_properties;
+
 //    int[string] children_type_count;
 
 //    string path;
@@ -126,6 +133,7 @@ class ContentNode {
                                   ContentNodeType.LIST,
                                   ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
                                   ContentNodeType.LISTING, ContentNodeType.FRAME_TITLE,
+                                  ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE,
                                   ContentNodeType.OVERPRINT ],
         ContentNodeType.FRAME_TITLE : [ ],
         ContentNodeType.MATH : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC,
@@ -144,20 +152,30 @@ class ContentNode {
                                        ContentNodeType.TABLE, ContentNodeType.LISTING ],
         */
         ContentNodeType.LIST : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
-                                 ContentNodeType.TABLE, ContentNodeType.OVERPRINT ],
+                                 ContentNodeType.TABLE, ContentNodeType.OVERPRINT,
+                                 ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
         ContentNodeType.TABLE : [ ],
         ContentNodeType.TABLE_GROUP : [ ],
         ContentNodeType.TABLE_ROW : [ ],
-        ContentNodeType.TABLE_CELL : [ ContentNodeType.MATH_INLINE, ContentNodeType.OVERPRINT ],
+        ContentNodeType.TABLE_CELL : [ ContentNodeType.MATH_INLINE, ContentNodeType.OVERPRINT,
+                                       ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
         ContentNodeType.COLUMN_GROUP : [ ContentNodeType.COLUMN ],
         ContentNodeType.COLUMN : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
                                    ContentNodeType.LIST,
                                    ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
-                                   ContentNodeType.LISTING, ContentNodeType.OVERPRINT ],
+                                   ContentNodeType.LISTING, ContentNodeType.OVERPRINT,
+                                   ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
         ContentNodeType.LISTING : [ ],
+        ContentNodeType.GRAPHIC : [ ContentNodeType.PROPERTY ],
+        ContentNodeType.PROPERTY : [ ],
         ContentNodeType.OVERPRINT : [ ContentNodeType.ONSLIDE ],
         ContentNodeType.ONSLIDE : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
-                                    ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP ],
+                                    ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
+                                    ContentNodeType.LIST, ContentNodeType.LISTING,
+                                    ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
+        ContentNodeType.TIKZ_PICTURE : [ ContentNodeType.TIKZ_ELEMENT ],
+        ContentNodeType.TIKZ_ELEMENT : [ ],
+        ContentNodeType.TIKZ_TEXT_ELEMENT : [ ContentNodeType.MATH_INLINE ],
         ContentNodeType.DUMMY : [ ]
     ];
 
@@ -301,10 +319,24 @@ class ContentNode {
                         return "\\begin{lstlisting}\n#0;\n\\end{lstlisting}";
                     else
                         return "\\begin{lstlisting}"~listing_style.output~"\n#0;\n\\end{lstlisting}";
+                case ContentNodeType.GRAPHIC:
+                    return "\\includegraphics[width=#1;]{#2;}\n";
+                case ContentNodeType.PROPERTY:
+                    return "#0;";
                 case ContentNodeType.OVERPRINT:
                     return "\\begin{overprint}[\\textwidth]\n#0;\n\\end{overprint}\n";
                 case ContentNodeType.ONSLIDE:
                     return "\\onslide<+>\n#0;\n";
+                case ContentNodeType.TIKZ_PICTURE:
+                    return "\\begin{tikzpicture}#0;\n\\end{tikzpicture}\n";
+                case ContentNodeType.TIKZ_ELEMENT:
+                    if (top) {
+                        return "\\begin{tikzpicture}\n#0;\n\\end{tikzpicture}\n";
+                    } else {
+                        return "#0;";
+                    }
+                case ContentNodeType.TIKZ_TEXT_ELEMENT:
+                    return "#0;";
             }
         }
     }
@@ -377,11 +409,26 @@ class ContentNode {
                     else
                         s = "Code Listing ("~listing_style.name~")";
                     break;
+                case ContentNodeType.GRAPHIC:
+                    s = "Graphic";
+                    break;
+                case ContentNodeType.PROPERTY:
+                    s = "Property";
+                    break;
                 case ContentNodeType.OVERPRINT:
                     s = "Overprint";
                     break;
                 case ContentNodeType.ONSLIDE:
                     s = "View";
+                    break;
+                case ContentNodeType.TIKZ_PICTURE:
+                    s = "TikZ Picture";
+                    break;
+                case ContentNodeType.TIKZ_ELEMENT:
+                    s = "Element";
+                    break;
+                case ContentNodeType.TIKZ_TEXT_ELEMENT:
+                    s = "Text Element";
                     break;
             }
         }
@@ -450,10 +497,20 @@ class ContentNode {
                     return "column";
                 case ContentNodeType.LISTING:
                     return "listing";
+                case ContentNodeType.GRAPHIC:
+                    return "graphic";
+                case ContentNodeType.PROPERTY:
+                    return "property";
                 case ContentNodeType.OVERPRINT:
                     return "overprint";
                 case ContentNodeType.ONSLIDE:
                     return "view";
+                case ContentNodeType.TIKZ_PICTURE:
+                    return "tikz";
+                case ContentNodeType.TIKZ_ELEMENT:
+                    return "element";
+                case ContentNodeType.TIKZ_TEXT_ELEMENT:
+                    return "text";
             }
         }
         return s;
@@ -468,6 +525,7 @@ class ContentNode {
             case ContentNodeType.TABLE_ROW:
             case ContentNodeType.COLUMN_GROUP:
             case ContentNodeType.OVERPRINT:
+            case ContentNodeType.GRAPHIC:
                 return false;
             case ContentNodeType.FRAME:
             case ContentNodeType.FRAME_TITLE:
@@ -485,7 +543,41 @@ class ContentNode {
             case ContentNodeType.COLUMN:
             case ContentNodeType.LISTING:
             case ContentNodeType.ONSLIDE:
+            case ContentNodeType.PROPERTY:
+            case ContentNodeType.TIKZ_PICTURE:
+            case ContentNodeType.TIKZ_ELEMENT:
+            case ContentNodeType.TIKZ_TEXT_ELEMENT:
                 return true;
+        }
+    }
+
+    @property bool allow_animations() {
+        final switch (type) {
+            case ContentNodeType.ROOT:
+            case ContentNodeType.STATIC:
+            case ContentNodeType.TABLE:
+            case ContentNodeType.TABLE_GROUP:
+            case ContentNodeType.TABLE_ROW:
+            case ContentNodeType.COLUMN_GROUP:
+            case ContentNodeType.FRAME:
+            case ContentNodeType.FRAME_TITLE:
+            case ContentNodeType.MATH:
+            case ContentNodeType.MATH_INLINE:
+            case ContentNodeType.MATH_GROUP:
+            case ContentNodeType.LIST:
+            case ContentNodeType.TABLE_CELL:
+            case ContentNodeType.DUMMY:
+            case ContentNodeType.COLUMN:
+            case ContentNodeType.LISTING:
+            case ContentNodeType.TIKZ_PICTURE:
+            case ContentNodeType.TIKZ_ELEMENT:
+            case ContentNodeType.TIKZ_TEXT_ELEMENT:
+                return true;
+            case ContentNodeType.OVERPRINT:
+            case ContentNodeType.ONSLIDE:
+            case ContentNodeType.GRAPHIC:
+            case ContentNodeType.PROPERTY:
+                return false;
         }
     }
 
@@ -804,7 +896,7 @@ class ContentNode {
             node.inside_math = true;
         }
 
-        if (supress_animations || context == ContextType.ANIM_GROUP) {
+        if (supress_animations || !allow_animations) {
             node.supress_animations = true;
         }
         
@@ -1095,6 +1187,8 @@ class ContentNode {
             case ContentNodeType.DUMMY:
             case ContentNodeType.STATIC:
             case ContentNodeType.ONSLIDE:
+            case ContentNodeType.GRAPHIC:
+            case ContentNodeType.PROPERTY:
                 return ContextType.NONE;
             case ContentNodeType.MATH:
             case ContentNodeType.MATH_INLINE:
@@ -1119,6 +1213,10 @@ class ContentNode {
                 return ContextType.LISTING;
             case ContentNodeType.OVERPRINT:
                 return ContextType.ANIM_GROUP;
+            case ContentNodeType.TIKZ_PICTURE:
+            case ContentNodeType.TIKZ_ELEMENT:
+            case ContentNodeType.TIKZ_TEXT_ELEMENT:
+                return ContextType.TIKZ;
         }
     }
 
@@ -1595,7 +1693,8 @@ enum AlphaList = ListProperties([
         "FinalMark2" : ".",
         "Mark" : "",
         "Progressive" : "0.5cm",
-        "Hide2" : "1"
+        "Hide2" : "1",
+        "Start1" : "1"
 ]);
 
 enum EnumeratedList = ListProperties([
@@ -1605,7 +1704,8 @@ enum EnumeratedList = ListProperties([
         "FinalMark2" : "{)}",
         "Mark" : "",
         "Progressive" : "0.5cm",
-        "Hide2" : "1"
+        "Hide2" : "1",
+        "Start1" : "1"
 ]);
 
 enum ItemizedList = ListProperties([
@@ -1614,7 +1714,8 @@ enum ItemizedList = ListProperties([
         "Mark" : "",
         "Progressive" : "0.5cm",
         "Hang" : "true",
-        "Hide" : "1000"
+        "Hide" : "1000",
+        "Start1" : "1"
 ]);
 
 

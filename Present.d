@@ -72,7 +72,8 @@ enum ContextType {
     TABLE,
     COLUMN,
     LISTING,
-    ANIM_GROUP
+    ANIM_GROUP,
+    TIKZ
 }
 
 extern (C) void main_window_present_cb() {
@@ -119,6 +120,7 @@ class Present {
     gtk.MenuItem.MenuItem properties_table_item;
     gtk.MenuItem.MenuItem properties_column_item;
     gtk.MenuItem.MenuItem properties_listing_item;
+    gtk.MenuItem.MenuItem properties_tikz_item;
 
     gtk.CheckMenuItem.CheckMenuItem properties_math_inline;
 
@@ -249,6 +251,14 @@ class Present {
         content_insert_listing.addOnActivate(&insert_listing_action);
         insert_items[ContentNodeType.LISTING] = content_insert_listing;
 
+        auto content_insert_graphic = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-figure-graphic");
+        content_insert_graphic.addOnActivate(&insert_graphic_action);
+        insert_items[ContentNodeType.GRAPHIC] = content_insert_graphic;
+
+        auto content_insert_tikz = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-figure-tikz");
+        content_insert_tikz.addOnActivate(&insert_tikz_action);
+        insert_items[ContentNodeType.TIKZ_PICTURE] = content_insert_tikz;
+
         auto content_animate_overprint = cast(gtk.MenuItem.MenuItem)builder.getObject("content-animate-overprint");
         content_animate_overprint.addOnActivate(&insert_overprint_action);
         insert_items[ContentNodeType.OVERPRINT] = content_animate_overprint;
@@ -323,6 +333,11 @@ class Present {
         
         auto properties_listing_style = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-listing-style");
         properties_listing_style.addOnActivate(&properties_listing_style_action);
+
+        properties_tikz_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-tikz-item");
+
+        auto properties_tikz_add_element = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-tikz-add-element");
+        properties_tikz_add_element.addOnActivate(&properties_tikz_add_element_action);
     }
 
     void init_editor() {
@@ -522,6 +537,12 @@ class Present {
             properties_listing_item.setVisible(1);
         } else {
             properties_listing_item.setVisible(0);
+        }
+
+        if (content.current_node.context == ContextType.TIKZ) {
+            properties_tikz_item.setVisible(1);
+        } else {
+            properties_tikz_item.setVisible(0);
         }
     }
 
@@ -733,6 +754,35 @@ class Present {
         foreach (i; 0 .. 2) {
             auto view = content.insertNodeAtCursor(node, ContentNodeType.ONSLIDE);
         }
+
+        if (auto_select) {
+            viewCurrent();
+            updateContext();
+        }
+    }
+
+    void insert_graphic_action(gtk.MenuItem.MenuItem item) {
+        auto node = content.insertNodeAtCursor(ContentNodeType.GRAPHIC, auto_select);
+        if (node is null)
+            return;
+
+        auto width = content.insertNodeAtCursor(node, ContentNodeType.PROPERTY, "Width", "width");
+        content.insertTextAtCursor(width, "\\textwidth");
+
+        auto path = content.insertNodeAtCursor(node, ContentNodeType.PROPERTY, "File", "file");
+
+        if (auto_select) {
+            viewCurrent();
+            updateContext();
+        }
+    }
+
+    void insert_tikz_action(gtk.MenuItem.MenuItem item) {
+        auto node = content.insertNodeAtCursor(ContentNodeType.TIKZ_PICTURE, auto_select);
+        if (node is null)
+            return;
+
+        content.insertTextAtCursor(node, "[x=1.0cm,y=1.0cm]");
 
         if (auto_select) {
             viewCurrent();
@@ -1014,6 +1064,21 @@ class Present {
 
         content.current_node.listing_style = listing_dialog.active_style;
         content.updateDisplayName(content.current_node);
+    }
+
+    void properties_tikz_add_element_action(gtk.MenuItem.MenuItem item) {
+        if (content.current_node.context != ContextType.TIKZ)
+            return;
+
+        auto tikz = content.current_node.findParent(ContentNodeType.TIKZ_PICTURE);
+
+        auto element = content.insertNodeAtCursor(tikz, ContentNodeType.TIKZ_ELEMENT);
+
+        if (auto_select) {
+            content.current_node = element;
+            viewCurrent();
+            updateContext();
+        }
     }
 
     void tree_drag_data_get_action(gdk.DragContext.DragContext context, gtk.SelectionData.SelectionData selection, uint info, uint time, gtk.Widget.Widget widget) {

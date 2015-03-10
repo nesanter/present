@@ -126,6 +126,12 @@ class Content {
         }
     }
 
+    void insertTextAtCursor(ContentNode node, string text) {
+        auto iter = new gtk.TextIter.TextIter();
+        node.buffer.getIterAtMark(iter, node.buffer.getInsert());
+        node.buffer.insert(iter, text);
+    }
+
     ContentNode insertNodeAtCursor(ContentNodeType type, bool select, string custom_display_name = "", string custom_inline_name = "") {
 
         if (!current_node.acceptsNodeType(type))
@@ -607,10 +613,16 @@ class Content {
         f.writeln("\\documentclass[t]{beamer}");
         f.writeln("\\usefonttheme[onlymath]{serif}");
         f.writeln("\\setbeamertemplate{navigation symbols}{}");
+        f.writeln("\\usepackage{lmodern}");
         f.writeln("\\usepackage[at]{easylist}");
         f.writeln("\\usepackage{multirow}");
         f.writeln("\\usepackage{graphicx}");
         f.writeln("\\usepackage{listings}");
+        f.writeln("\\usepackage{tikz}");
+        f.writeln("\\usetikzlibrary{arrows}");
+        f.writeln("\\usetikzlibrary{decorations.pathreplacing}");
+        f.writeln("\\usetikzlibrary{positioning}");
+        f.writeln("\\usetikzlibrary{calc}");
     }
 
     void outputPreviewPreamble(File f) {
