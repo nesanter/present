@@ -66,6 +66,15 @@ class Content {
 //        selection_buffer.addOnInsertText(&selection_insert_action);
     }
 
+    void clear() {
+        foreach (key; node_by_id.keys)
+            node_by_id.remove(key);
+        mark_id = 0;
+        root_node = new ContentNode(ContentNodeType.ROOT, mark_id++, tag_table);
+        current_node = root_node;
+        model.clear();
+    }
+
     /+
     ContentNode insertNodeAtCursor(ContentNodeType type) {
         auto node = new ContentNode(type, mark_id++);

@@ -202,6 +202,7 @@ class Present {
         auto file_save = cast(gtk.MenuItem.MenuItem)builder.getObject("file-save");
         file_save.addOnActivate(&file_save_action);
 
+
 //        auto content_insert = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-item");
 //        content_insert.addOnActivate(&popup_insert_action);
 
@@ -442,10 +443,10 @@ class Present {
 
         if (content.current_node.acceptsNodeType(ContentNodeType.MATH)) {
             content_insert_math.setSensitive(1);
-            content_insert_math.setLabel("Math");
+            content_insert_math.setLabel("_Math");
         } else if (content.current_node.acceptsNodeType(ContentNodeType.MATH_INLINE)) {
             content_insert_math.setSensitive(1);
-            content_insert_math.setLabel("Math (inline)");
+            content_insert_math.setLabel("_Math (inline)");
         } else {
             content_insert_math.setSensitive(0);
         }
@@ -573,7 +574,14 @@ class Present {
     }
 
     void file_open_action(gtk.MenuItem.MenuItem item) {
-
+        content.clear();
+        if (Loader.Loader.load(content, tempDir()~"/test_save")) {
+//            viewCurrent();
+            editor.setBuffer(content.root_node.buffer);
+            updateContext();
+        } else {
+            writeln("loading failed");
+        }
     }
 
     void file_save_action(gtk.MenuItem.MenuItem item) {

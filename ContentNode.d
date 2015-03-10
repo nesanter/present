@@ -191,6 +191,12 @@ class ContentNode {
         ];
     }
 
+    this(gtk.TextTagTable.TextTagTable tag_table) {
+        //used by loader
+        buffer = new gsv.SourceBuffer.SourceBuffer(tag_table);
+        buffer.addOnChanged(&buffer_changed_action);
+    }
+
     this(ContentNodeType type, ulong id, gtk.TextTagTable.TextTagTable tag_table, string custom_display_name = "", string custom_inline_name = "") {
         this.type = type;
         this.id = id;
@@ -883,6 +889,21 @@ class ContentNode {
 
         node.cid = new_cid;
     }
+
+    int addLoadedChild(ContentNode node) {
+        node.parent = this;
+        if (inside_math || context == ContextType.MATH) {
+            node.inside_math = true;
+        }
+
+        if (supress_animations || !allow_animations) {
+            node.supress_animations = true;
+        }
+
+        children ~= node;
+
+        return cast(int)(children.length - 1);
+    }
     
     int addChild(ContentNode node, gtk.TextIter.TextIter iter) {
 //        children_type_count[node.short_name] = children_type_count.get(node.short_name, 0) + 1;
@@ -987,12 +1008,23 @@ class ContentNode {
         return false;
     }
 
+    void createMarks() {
+        auto iter = new gtk.TextIter.TextIter();
+        buffer.getStartIter(iter);
+        foreach (child; children) {
+            auto start_mark = new gtk.TextMark.TextMark("s"~to!string(child.id), 1);
+            buffer.addMark(start_mark, iter);
+            auto end_mark = new gtk.TextMark.TextMark("e"~to!string(child.id), 1);
+            buffer.addMark(end_mark, iter);
+        }
+    }
+
     void buffer_changed_action(gtk.TextBuffer.TextBuffer buffer) {
         if (context == ContextType.LISTING)
             return;
-        checkSlideMarks();
         if (!supress_animations)
-            checkOrphans();
+            checkSlideMarks();
+        checkOrphans();
     }
 
     void checkOrphans() {
@@ -1651,6 +1683,13 @@ class ContentNode {
         buffer.getEndIter(end);
 
         return buffer.getText(start, end, 1);
+    }
+
+    void initBuffers() {
+        createMarks();
+        buffer_changed_action(null);
+        foreach (child; children)
+            child.initBuffers();
     }
 }
 
