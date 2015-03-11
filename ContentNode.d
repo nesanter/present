@@ -354,7 +354,7 @@ class ContentNode {
         } else {
             final switch (type) {
                 case ContentNodeType.ROOT:
-                    s = "root";
+                    s = "(Root)";
                     break;
                 case ContentNodeType.FRAME:
                     s = "Frame";
@@ -460,7 +460,7 @@ class ContentNode {
         } else {
             final switch (type) {
                 case ContentNodeType.ROOT:
-                    s = "root";
+                    s = "";
                     break;
                 case ContentNodeType.FRAME:
                     s = "frame";
@@ -1672,7 +1672,7 @@ class ContentNode {
             title = node.short_name ~ "/" ~ title;
             node = node.parent;
         }
-        return title;
+        return "/" ~ title;
     }
 
     string getText() {
