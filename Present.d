@@ -44,8 +44,10 @@ static import poppler_glib.document;
 static import poppler_glib.page;
 static import gtk.DragAndDrop;
 static import gdk.Atoms;
+static import gtk.FileChooserDialog;
+static import gtk.MessageDialog;
 
-import Content, ContentNode, PresentMath, PresentPreview, PresentTableDialog, PresentColumnDialog, PresentListingDialog, Loader;
+import Content, ContentNode, PresentMath, PresentPreview, PresentTableDialog, PresentColumnDialog, PresentListingDialog, Loader, Info;
 
 Present app;
 
@@ -89,12 +91,12 @@ extern (C) void sub_window_present_cb() {
 }
 
 extern (C) void refresh_preview_cb() {
+    if (!app.generatePreview())
+        return;
     auto item = cast(gtk.CheckMenuItem.CheckMenuItem)app.builder.getObject("file-toggle-preview");
     item.setActive(1);
     app.preview_window.show();
     app.preview_window.window.present();
-    if (!app.generatePreview())
-        return;
     app.preview_window.updatePreview(app.preview_filename, false);
 }
 
@@ -114,6 +116,11 @@ class Present {
     PresentTableDialog table_dialog;
     PresentColumnDialog column_dialog;
     PresentListingDialog listing_dialog;
+
+    Infobar infobar;
+
+    gtk.FileChooserDialog.FileChooserDialog save_dialog, open_dialog, export_dialog;
+//    gtk.MessageDialog.MessageDialog open_failed_dialog;
 
     gtk.MenuItem.MenuItem properties_math_item;
     gtk.MenuItem.MenuItem properties_list_item;
@@ -144,6 +151,8 @@ class Present {
     string preview_filename;
     bool preview_ready = true;
 
+    File last_stderr;
+
     void run() {
         builder = new gtk.Builder.Builder();
         builder.addFromFile("interface.glade");
@@ -155,8 +164,10 @@ class Present {
         init_menu_bar();
         init_tree();
         init_editor();
+        init_infobar();
         init_preview_window();
         init_math_window();
+        init_file_dialogs();
         init_table_dialog();
         init_column_dialog();
         init_listing_dialog();
@@ -202,6 +213,11 @@ class Present {
         auto file_save = cast(gtk.MenuItem.MenuItem)builder.getObject("file-save");
         file_save.addOnActivate(&file_save_action);
 
+        auto file_save_as = cast(gtk.MenuItem.MenuItem)builder.getObject("file-save-as");
+        file_save_as.addOnActivate(&file_save_as_action);
+
+        auto file_close = cast(gtk.MenuItem.MenuItem)builder.getObject("file-close");
+        file_close.addOnActivate(&file_close_action);
 
 //        auto content_insert = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-item");
 //        content_insert.addOnActivate(&popup_insert_action);
@@ -398,6 +414,10 @@ class Present {
 
     }
 
+    void init_infobar() {
+        infobar = new Infobar(builder);
+    }
+
     void init_preview_window() {
         preview_window = new PresentPreview(builder);
 //        context_window = new PresentContext(builder);
@@ -406,6 +426,13 @@ class Present {
 
     void init_math_window() {
         math_window = new PresentMath(builder);
+    }
+
+    void init_file_dialogs() {
+        save_dialog = cast(gtk.FileChooserDialog.FileChooserDialog)builder.getObject("save-dialog");
+        open_dialog = cast(gtk.FileChooserDialog.FileChooserDialog)builder.getObject("open-dialog");
+        export_dialog = cast(gtk.FileChooserDialog.FileChooserDialog)builder.getObject("export-dialog");
+//        open_failed_dialog = cast(gtk.MessageDialog.MessageDialog)builder.getObject("open-failed-dialog");
     }
 
     void init_table_dialog() {
@@ -426,7 +453,10 @@ class Present {
 
     void updateContext() {
 
-        main_window.setTitle("Present - "~content.current_node.buildTitle());
+        if (content.current_basename.length == 0)
+            main_window.setTitle("Present - (unnamed) - "~content.current_node.buildTitle());
+        else
+            main_window.setTitle("Present - "~content.current_basename~" - "~content.current_node.buildTitle());
 
         if (content.current_node.editable) {
             editor.setEditable(1);
@@ -548,11 +578,24 @@ class Present {
     }
 
     bool runLatex() {
-        auto pid = spawnProcess(["pdflatex", "-halt-on-error", "-output-directory="~tempDir(), "preview.tex"]);
-        if (wait(pid) == 0) {
+        auto pipes = pipeProcess(["pdflatex", "-halt-on-error", "-output-directory="~tempDir(), "preview.tex"]);
+        if (wait(pipes.pid) == 0) {
+            infobar.dismissMessage();
             return true;
         } else {
+            last_stderr = pipes.stdout;
+            infobar.showMessage("LaTeX processing ended with errors", "Show",
+                    (MessageResponse r) {
+                        if (r == MessageResponse.ACTION1)
+                            showLatexErrors();
+                    });
             return false;
+        }
+    }
+
+    void showLatexErrors() {
+        foreach (line; last_stderr.byLine) {
+            writeln(line);
         }
     }
 
@@ -574,20 +617,46 @@ class Present {
     }
 
     void file_open_action(gtk.MenuItem.MenuItem item) {
-        content.clear();
-        if (Loader.Loader.load(content, tempDir()~"/test_save")) {
-//            viewCurrent();
+        auto result = open_dialog.run();
+        open_dialog.hide();
+        if (result == 0) {
+            content.clear();
+            auto loaded = Loader.Loader.load(content, open_dialog.getFilename());
             editor.setBuffer(content.root_node.buffer);
             updateContext();
-        } else {
-            writeln("loading failed");
+
+            if (!loaded) {
+//                infobar.setError();
+                infobar.showMessage("<span color=\"red\">Failed to open file: "~open_dialog.getFilename()~"</span>");
+//                open_failed_dialog.run();
+//                open_failed_dialog.hide();
+            }
         }
     }
 
     void file_save_action(gtk.MenuItem.MenuItem item) {
-        Loader.Loader.save(content, tempDir()~"/test_save");
+        if (content.current_filename == "") {
+            file_save_as_action(null);
+        } else {
+            Loader.Loader.save(content, content.current_filename);
+        }
     }
 
+    void file_save_as_action(gtk.MenuItem.MenuItem item) {
+        auto result = save_dialog.run();
+        save_dialog.hide();
+        if (result == 0) {
+            content.setCurrentFilename(save_dialog.getFilename());
+            Loader.Loader.save(content, content.current_filename);
+            updateContext();
+        }
+    }
+
+    void file_close_action(gtk.MenuItem.MenuItem item) {
+        infobar.showMessage("This is a test.");
+    }
+
+    /*
     void popup_insert_action(gtk.MenuItem.MenuItem item) {
         auto content_insert_menu = cast(gtk.Menu.Menu)(builder.getObject("content-insert"));
         content_insert_menu.popup(null, null, null, null, 0, gtk.Main.Main.getCurrentEventTime());
@@ -597,6 +666,7 @@ class Present {
         auto content_animate_menu = cast(gtk.Menu.Menu)(builder.getObject("content-animate"));
         content_animate_menu.popup(null, null, null, null, 0, gtk.Main.Main.getCurrentEventTime());
     }
+    */
 
     void new_frame_action(gtk.MenuItem.MenuItem item) {
         auto node = content.insertNodeAtToplevel(ContentNodeType.FRAME, auto_select);

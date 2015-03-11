@@ -2,6 +2,7 @@ import std.stdio;
 import std.exception;
 import std.string;
 import std.conv;
+import std.path;
 
 import Present, Content, ContentNode;
 
@@ -38,6 +39,9 @@ class Loader {
                     return false;
             }
         }
+
+        c.current_filename = filename;
+        c.current_basename = baseName(filename);
 
         return true;
     }
@@ -283,11 +287,6 @@ class Loader {
     }
 
     private static string clean(string input) {
-        string output = stripLeft(input);
-
-        if (output.length > 0 && output[$-1] == '\n')
-            return output[0 .. $-1];
-        
-        return output;
+        return chomp(stripLeft(input));
     }
 }

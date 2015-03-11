@@ -3,6 +3,7 @@ import std.conv;
 import std.string;
 import std.exception;
 import std.process;
+import std.path;
 
 static import gtk.Builder;
 static import gtk.Main;
@@ -52,6 +53,9 @@ class Content {
 
     ContentNode[ulong] node_by_id;
 
+    string current_filename;
+    string current_basename;
+
     this(gtk.Builder.Builder builder) {
 //        this.view = view;
         model = new gtk.TreeStore.TreeStore([gtkc.gobjecttypes.GType.STRING, gtkc.gobjecttypes.GType.INT]);
@@ -73,6 +77,16 @@ class Content {
         root_node = new ContentNode(ContentNodeType.ROOT, mark_id++, tag_table);
         current_node = root_node;
         model.clear();
+    }
+
+    void setCurrentFilename(string filename) {
+        auto ext = extension(filename);
+        if (ext is null || ext != ".prsave") {
+            filename ~= ".prsave";
+        }
+
+        current_basename = baseName(filename, ".prsave");
+        current_filename = filename;
     }
 
     /+
