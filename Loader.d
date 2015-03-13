@@ -92,6 +92,10 @@ class Loader {
                 break;
             case ContextType.TIKZ:
                 break;
+            case ContextType.MATH_TABLE:
+                if (node.math_environment != "")
+                    writeProperty(f, "math_environment", node.math_environment, depth);
+                break;
         }
 
         string text = node.getText();

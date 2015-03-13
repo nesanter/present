@@ -47,7 +47,7 @@ static import gdk.Atoms;
 static import gtk.FileChooserDialog;
 static import gtk.MessageDialog;
 
-import Content, ContentNode, PresentMath, PresentPreview, PresentTableDialog, PresentColumnDialog, PresentListingDialog, Loader, Info;
+import Content, ContentNode, PresentMath, PresentPreview, PresentTableDialog, PresentColumnDialog, PresentListingDialog, Loader, Info, PresentMenu;
 
 Present app;
 
@@ -75,7 +75,8 @@ enum ContextType {
     COLUMN,
     LISTING,
     ANIM_GROUP,
-    TIKZ
+    TIKZ,
+    MATH_TABLE
 }
 
 extern (C) void main_window_present_cb() {
@@ -122,26 +123,35 @@ class Present {
     gtk.FileChooserDialog.FileChooserDialog save_dialog, open_dialog, export_dialog;
 //    gtk.MessageDialog.MessageDialog open_failed_dialog;
 
+    MainMenuItem[] menu_items;
+
+//    gtk.MenuItem.MenuItem content_menu_item;
+
+    /*
     gtk.MenuItem.MenuItem properties_math_item;
     gtk.MenuItem.MenuItem properties_list_item;
     gtk.MenuItem.MenuItem properties_table_item;
     gtk.MenuItem.MenuItem properties_column_item;
     gtk.MenuItem.MenuItem properties_listing_item;
     gtk.MenuItem.MenuItem properties_tikz_item;
+    gtk.MenuItem.MenuItem properties_animate_item;
+    gtk.MenuItem.MenuItem properties_math_table_item;
+    */
+//    gtk.MenuItem.MenuItem[ContextType] property_items;
 
-    gtk.CheckMenuItem.CheckMenuItem properties_math_inline;
+//    gtk.CheckMenuItem.CheckMenuItem properties_math_inline;
 
-    gtk.RadioMenuItem.RadioMenuItem[] properties_list_type_items;
+//    gtk.RadioMenuItem.RadioMenuItem[] properties_list_type_items;
 
-    gtk.MenuItem.MenuItem properties_table_size;
-    gtk.CheckMenuItem.CheckMenuItem properties_table_group;
+//    gtk.MenuItem.MenuItem properties_table_size;
+//    gtk.CheckMenuItem.CheckMenuItem properties_table_group;
 
-    gtk.CheckMenuItem.CheckMenuItem properties_column_align;
+//    gtk.CheckMenuItem.CheckMenuItem properties_column_align;
 
-    gtk.CheckMenuItem.CheckMenuItem frame_shrink_contents;
+//    gtk.CheckMenuItem.CheckMenuItem frame_shrink_contents;
 
-    gtk.MenuItem.MenuItem content_insert_math;
-    gtk.MenuItem.MenuItem[ContentNodeType] insert_items;
+//    gtk.MenuItem.MenuItem content_insert_math;
+//    gtk.MenuItem.MenuItem[ContentNodeType] insert_items;
 
     bool auto_select;
 
@@ -200,6 +210,10 @@ class Present {
         main_accel_group.connect(key, mods, cast(gtk.AccelGroup.GtkAccelFlags)0, closure);
     }
 
+    void addItem(MainMenuItem item) {
+        menu_items ~= item;
+    }
+
     void init_menu_bar() {
         auto file_quit = cast(gtk.MenuItem.MenuItem)builder.getObject("file-quit");
         file_quit.addOnActivate(&file_quit_action);
@@ -233,10 +247,12 @@ class Present {
 
         auto frame_add_title = cast(gtk.MenuItem.MenuItem)builder.getObject("frame-add-title");
         frame_add_title.addOnActivate(&frame_add_title_action);
-        insert_items[ContentNodeType.FRAME_TITLE] = frame_add_title;
+//        insert_items[ContentNodeType.FRAME_TITLE] = frame_add_title;
 
-        frame_shrink_contents = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("frame-shrink");
-        frame_shrink_contents.addOnToggled(&frame_shrink_contents_action);
+//        addItem(new FrameShrinkContentsItem(builder, "frame-shrink"));
+
+//        frame_shrink_contents = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("frame-shrink");
+//        frame_shrink_contents.addOnToggled(&frame_shrink_contents_action);
 
         auto frame_previous = cast(gtk.MenuItem.MenuItem)builder.getObject("frame-previous");
         auto frame_next = cast(gtk.MenuItem.MenuItem)builder.getObject("frame-next");
@@ -244,41 +260,57 @@ class Present {
         frame_previous.addOnActivate(&frame_previous_action);
         frame_next.addOnActivate(&frame_next_action);
 
+//        content_menu_item = cast(gtk.MenuItem.MenuItem)builder.getObject("content-menu-item");
+        addItem(new ContentMenuItem(builder, "content-menu-item"));
+
 //        auto content_merge = cast(gtk.MenuItem.MenuItem)builder.getObject("content-merge");
 //        content_merge.addOnActivate(&merge_action);
 
-        content_insert_math = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-math");
-        content_insert_math.addOnActivate(&insert_math_action);
+//        content_insert_math = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-math");
+//        content_insert_math.addOnActivate(&insert_math_action);
 //        insert_items[ContentNodeType.MATH] = content_insert_math;
 //        insert_items[ContentNodeType.MATH_INLINE] = content_insert_math;
+        addItem(new InsertMathItem(builder, "content-insert-math"));
 
-        auto content_insert_list = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-list");
-        content_insert_list.addOnActivate(&insert_list_action);
-        insert_items[ContentNodeType.LIST] = content_insert_list;
+//        auto content_insert_list = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-list");
+//        content_insert_list.addOnActivate(&insert_list_action);
+//        insert_items[ContentNodeType.LIST] = content_insert_list;
+        addItem(new InsertListItem(builder, "content-insert-list"));
 
-        auto content_insert_table = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-table");
-        content_insert_table.addOnActivate(&insert_table_action);
-        insert_items[ContentNodeType.TABLE] = content_insert_table;
+//        auto content_insert_table = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-table");
+//        content_insert_table.addOnActivate(&insert_table_action);
+//        insert_items[ContentNodeType.TABLE] = content_insert_table;
+        addItem(new InsertTableItem(builder, "content-insert-table"));
 
-        auto content_insert_columns = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-columns");
-        content_insert_columns.addOnActivate(&insert_columns_action);
-        insert_items[ContentNodeType.COLUMN_GROUP] = content_insert_columns;
+//        auto content_insert_columns = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-columns");
+//        content_insert_columns.addOnActivate(&insert_columns_action);
+//        insert_items[ContentNodeType.COLUMN_GROUP] = content_insert_columns;
+        addItem(new InsertColumnsItem(builder, "content-insert-columns"));
 
-        auto content_insert_listing = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-listing");
-        content_insert_listing.addOnActivate(&insert_listing_action);
-        insert_items[ContentNodeType.LISTING] = content_insert_listing;
+//        auto content_insert_listing = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-listing");
+//        content_insert_listing.addOnActivate(&insert_listing_action);
+//        insert_items[ContentNodeType.LISTING] = content_insert_listing;
+        addItem(new InsertListingItem(builder, "content-insert-listing"));
 
-        auto content_insert_graphic = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-figure-graphic");
-        content_insert_graphic.addOnActivate(&insert_graphic_action);
-        insert_items[ContentNodeType.GRAPHIC] = content_insert_graphic;
+//        auto content_insert_graphic = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-figure-graphic");
+//        content_insert_graphic.addOnActivate(&insert_graphic_action);
+//        insert_items[ContentNodeType.GRAPHIC] = content_insert_graphic;
+        addItem(new InsertGraphicItem(builder, "content-insert-figure-graphic"));
 
-        auto content_insert_tikz = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-figure-tikz");
-        content_insert_tikz.addOnActivate(&insert_tikz_action);
-        insert_items[ContentNodeType.TIKZ_PICTURE] = content_insert_tikz;
+//        auto content_insert_tikz = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-figure-tikz");
+//        content_insert_tikz.addOnActivate(&insert_tikz_action);
+//        insert_items[ContentNodeType.TIKZ_PICTURE] = content_insert_tikz;
+        addItem(new InsertTikzItem(builder, "content-insert-figure-tikz"));
 
-        auto content_animate_overprint = cast(gtk.MenuItem.MenuItem)builder.getObject("content-animate-overprint");
-        content_animate_overprint.addOnActivate(&insert_overprint_action);
-        insert_items[ContentNodeType.OVERPRINT] = content_animate_overprint;
+//        auto content_insert_aligned = cast(gtk.MenuItem.MenuItem)builder.getObject("content-insert-aligned-math");
+//        content_insert_aligned.addOnActivate(&insert_aligned_action);
+//        insert_items[ContentNodeType.MATH_TABLE] = content_insert_aligned;
+        addItem(new InsertAlignedItem(builder, "content-insert-aligned-math"));
+
+//        auto content_animate_overprint = cast(gtk.MenuItem.MenuItem)builder.getObject("content-animate-overprint");
+//        content_animate_overprint.addOnActivate(&insert_overprint_action);
+//        insert_items[ContentNodeType.OVERPRINT] = content_animate_overprint;
+        addItem(new AnimateOverprintItem(builder, "content-animate-overprint"));
 
         auto content_remove = cast(gtk.MenuItem.MenuItem)builder.getObject("content-remove");
         content_remove.addOnActivate(&content_remove_action);
@@ -304,57 +336,95 @@ class Present {
         auto math_window_toggle = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("file-toggle-math");
         math_window_toggle.addOnToggled(&math_window_toggle_action);
 
-        properties_math_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-math-item");
+//        auto properties_math_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-math-item");
+//        property_items[ContextType.MATH] = properties_math_item;
+        addItem(new ContextDependentItem(builder, "properties-math-item", ContextType.MATH));
 
-        properties_math_inline = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-math-inline");
-        properties_math_inline.addOnToggled(&properties_math_inline_toggle_action);
+//        properties_math_inline = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-math-inline");
+//        properties_math_inline.addOnToggled(&properties_math_inline_toggle_action);
+        addItem(new PropertiesMathInlineItem(builder, "properties-math-inline"));
 
-        properties_list_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-list-item");
+//        auto properties_list_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-list-item");
+//        property_items[ContextType.LIST] = properties_list_item;
+        addItem(new ContextDependentItem(builder, "properties-list-item", ContextType.LIST));
+
+        addItem(new PropertiesListTypeItem(builder,
+                    [ "properties-list-itemize" : "Itemized",
+                      "properties-list-enumerate" : "Enumerated",
+                      "properties-list-alpha" : "Lettered" ]));
         
-        auto properties_list_itemize = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-itemize");
-        auto properties_list_enumerate = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-enumerate");
-        auto properties_list_alpha = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-alpha");
-        properties_list_itemize.addOnActivate(&properties_list_type_change_action);
-        properties_list_enumerate.addOnActivate(&properties_list_type_change_action);
-        properties_list_alpha.addOnActivate(&properties_list_type_change_action);
+//        auto properties_list_itemize = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-itemize");
+//        auto properties_list_enumerate = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-enumerate");
+//        auto properties_list_alpha = cast(gtk.RadioMenuItem.RadioMenuItem)builder.getObject("properties-list-alpha");
+//        properties_list_itemize.addOnActivate(&properties_list_type_change_action);
+//        properties_list_enumerate.addOnActivate(&properties_list_type_change_action);
+//        properties_list_alpha.addOnActivate(&properties_list_type_change_action);
 
-        properties_list_type_items = [
-            properties_list_itemize,
-            properties_list_enumerate,
-            properties_list_alpha
-        ];
+//        properties_list_type_items = [
+//            properties_list_itemize,
+//            properties_list_enumerate,
+//            properties_list_alpha
+//        ];
 
-        properties_table_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-item");
+//        auto properties_table_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-item");
+//        property_items[ContextType.TABLE] = properties_table_item;
+        addItem(new ContextDependentItem(builder, "properties-table-item", ContextType.TABLE));
 
-        properties_table_size = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-size");
-        properties_table_size.addOnActivate(&properties_table_size_action);
+//        properties_table_size = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-size");
+//        properties_table_size.addOnActivate(&properties_table_size_action);
+        addItem(new PropertiesTableSizeItem(builder, "properties-table-size"));
 
-        properties_table_group = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-table-group");
-        properties_table_group.addOnToggled(&properties_table_group_toggle);
+//        properties_table_group = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-table-group");
+//        properties_table_group.addOnToggled(&properties_table_group_toggle);
+        addItem(new PropertiesTableGroupItem(builder, "properties-table-group"));
 
-        auto properties_table_border = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-border");
-        properties_table_border.addOnActivate(&properties_table_border_action);
+//        auto properties_table_border = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-table-border");
+//        properties_table_border.addOnActivate(&properties_table_border_action);
+        addItem(new PropertiesTableBorderItem(builder, "properties-table-border"));
 
-        properties_column_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-column-item");
+//        auto properties_column_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-column-item");
+//        property_items[ContextType.COLUMN] = properties_column_item;
+        addItem(new ContextDependentItem(builder, "properties-column-item", ContextType.COLUMN));
         
-        auto properties_column_size = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-column-size");
-        properties_column_size.addOnActivate(&properties_column_size_action);
+//        auto properties_column_size = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-column-size");
+//        properties_column_size.addOnActivate(&properties_column_size_action);
+        addItem(new PropertiesColumnSizeItem(builder, "properties-column-size"));
 
-        auto properties_column_add = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-column-add");
-        properties_column_add.addOnActivate(&properties_column_add_action);
+//        auto properties_column_add = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-column-add");
+//        properties_column_add.addOnActivate(&properties_column_add_action);
+        addItem(new PropertiesColumnAddItem(builder, "properties-column-add"));
 
-        properties_column_align = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-column-align");
-        properties_column_align.addOnToggled(&properties_column_align_action);
+        addItem(new PropertiesColumnRemoveItem(builder, "properties-column-remove"));
 
-        properties_listing_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-listing-item");
+//        properties_column_align = cast(gtk.CheckMenuItem.CheckMenuItem)builder.getObject("properties-column-align");
+//        properties_column_align.addOnToggled(&properties_column_align_action);
+        addItem(new PropertiesColumnAlignItem(builder, "properties-column-align"));
+
+//        properties_listing_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-listing-item");
+        addItem(new ContextDependentItem(builder, "properties-listing-item", ContextType.LISTING));
         
-        auto properties_listing_style = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-listing-style");
-        properties_listing_style.addOnActivate(&properties_listing_style_action);
+//        auto properties_listing_style = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-listing-style");
+//        properties_listing_style.addOnActivate(&properties_listing_style_action);
+        addItem(new PropertiesListingStyleItem(builder, "properties-listing-style"));
 
-        properties_tikz_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-tikz-item");
+//        properties_tikz_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-tikz-item");
+        addItem(new ContextDependentItem(builder, "properties-tikz-item", ContextType.TIKZ));
 
-        auto properties_tikz_add_element = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-tikz-add-element");
-        properties_tikz_add_element.addOnActivate(&properties_tikz_add_element_action);
+//        auto properties_tikz_add_element = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-tikz-add-element");
+//        properties_tikz_add_element.addOnActivate(&properties_tikz_add_element_action);
+        addItem(new PropertiesTikzAddElement(builder, "properties-tikz-add-element"));
+
+//        properties_animate_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-animate-item");
+        addItem(new ContextDependentItem(builder, "properties-animate-item", ContextType.ANIM_GROUP));
+        
+        auto properties_animate_add_view = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-animate-add-view");
+        properties_animate_add_view.addOnActivate(&properties_animate_add_view_action);
+
+//        properties_math_table_item = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-math-table-item");
+        addItem(new ContextDependentItem(builder, "properties-math-table-item", ContextType.MATH_TABLE));
+
+        auto properties_math_table_size = cast(gtk.MenuItem.MenuItem)builder.getObject("properties-math-table-size");
+        properties_math_table_size.addOnActivate(&properties_math_table_size_action);
     }
 
     void init_editor() {
@@ -457,6 +527,8 @@ class Present {
             main_window.setTitle("Present - (unnamed) - "~content.current_node.buildTitle());
         else
             main_window.setTitle("Present - "~content.current_basename~" - "~content.current_node.buildTitle());
+        
+        editor.setBuffer(content.current_node.buffer);
 
         if (content.current_node.editable) {
             editor.setEditable(1);
@@ -464,6 +536,11 @@ class Present {
             editor.setEditable(0);
         }
 
+        foreach (item; menu_items) {
+            item.update(content.current_node);
+        }
+
+        /*
         foreach (key, value; insert_items) {
             if (content.current_node.acceptsNodeType(key))
                 value.setSensitive(1);
@@ -480,21 +557,27 @@ class Present {
         } else {
             content_insert_math.setSensitive(0);
         }
+        */
 
+        /*
         if (content.current_node.type == ContentNodeType.FRAME) {
             frame_shrink_contents.setSensitive(1);
             frame_shrink_contents.setActive(content.current_node.shrink_contents ? 1 : 0);
         } else {
             frame_shrink_contents.setSensitive(0);
         }
+        */
 
-        auto content_menu = cast(gtk.MenuItem.MenuItem)builder.getObject("content-menu-item");
+//        auto content_menu = cast(gtk.MenuItem.MenuItem)builder.getObject("content-menu-item");
+        /*
         if (content.current_node.type == ContentNodeType.ROOT) {
-            content_menu.setSensitive(0);
+            content_menu_item.setSensitive(0);
         } else {
-            content_menu.setSensitive(1);
+            content_menu_item.setSensitive(1);
         }
+        */
 
+        /*
         if (content.current_node.context == ContextType.MATH) {
             math_window.enable();
             properties_math_item.setVisible(1);
@@ -521,6 +604,7 @@ class Present {
         } else {
             properties_list_item.setVisible(0);
         }
+        */
 
         if (content.current_node.context == ContextType.TABLE) {
             auto table = content.current_node.findParent(ContentNodeType.TABLE);
@@ -535,6 +619,7 @@ class Present {
 //                writeln(table.flattenTable());
 //            if (table.table_width == table.weight[0] && table.table_height == table.weight[1])
 //                writeln(table.flattenTable());
+            /*
             properties_table_item.setVisible(1);
             if (content.current_node.type == ContentNodeType.TABLE_GROUP) {
                 properties_table_group.setActive(1);
@@ -553,10 +638,13 @@ class Present {
             } else {
                 properties_table_size.setSensitive(0);
             }
-        } else {
+            */
+        }/* else {
             properties_table_item.setVisible(0);
         }
+        */
 
+        /*
         if (content.current_node.context == ContextType.COLUMN) {
             properties_column_item.setVisible(1);
             properties_column_align.setActive((content.current_node.top_aligned ? 1 : 0));
@@ -575,6 +663,13 @@ class Present {
         } else {
             properties_tikz_item.setVisible(0);
         }
+
+        if (content.current_node.context == ContextType.ANIM_GROUP) {
+            properties_animate_item.setVisible(1);
+        } else {
+            properties_animate_item.setVisible(0);
+        }
+        */
     }
 
     bool runLatex() {
@@ -610,11 +705,13 @@ class Present {
         gtk.Main.Main.quit();
     }
 
+    /*
     void file_export_action(gtk.MenuItem.MenuItem item) {
         File f = File("output.tex", "w");
         content.exportLatex(f, null);
         f.close();
     }
+    */
 
     void file_open_action(gtk.MenuItem.MenuItem item) {
         auto result = open_dialog.run();
@@ -652,6 +749,24 @@ class Present {
         }
     }
 
+    void file_export_action(gtk.MenuItem.MenuItem item) {
+        auto result = export_dialog.run();
+        export_dialog.hide();
+        if (result == 0) {
+            File f;
+            try {
+                f = File(export_dialog.getFilename(), "w");
+            } catch (ErrnoException e) {
+                infobar.showMessage("<span color=\"red\">Failed to export file to "~export_dialog.getFilename()~"</span>");
+                return;
+            }
+
+            content.exportLatex(f, null);
+
+            f.close();
+        }
+    }
+
     void file_close_action(gtk.MenuItem.MenuItem item) {
         infobar.showMessage("This is a test.");
     }
@@ -674,9 +789,10 @@ class Present {
             viewCurrent();
 //            editor.setEditable(1);
             updateContext();
-        } else {
+        }/* else {
             content.updateView(editor);
         }
+        */
     }
 
     void remove_frame_action(gtk.MenuItem.MenuItem item) {
@@ -718,9 +834,9 @@ class Present {
         if (auto_select) {
             editor.setBuffer(content.current_node.buffer);
             updateContext();
-        } else {
+        }/* else {
             content.updateView(editor);
-        }
+        }*/
     }
 
     void frame_shrink_contents_action(gtk.CheckMenuItem.CheckMenuItem item) {
@@ -758,6 +874,7 @@ class Present {
         }
     }
 
+    /*
     void insert_math_action(gtk.MenuItem.MenuItem item) {
         auto node = content.insertNodeAtCursor(ContentNodeType.MATH, auto_select);
         if (node is null) {
@@ -867,20 +984,39 @@ class Present {
             updateContext();
         }
     }
-    
+
+    void insert_aligned_action(gtk.MenuItem.MenuItem item) {
+        if (table_dialog.runSize()) {
+            auto node = content.insertNodeAtCursor(ContentNodeType.MATH_TABLE, auto_select, "Aligned Math", "aligned");
+            if (node is null)
+                return;
+
+            node.math_environment = "align*";
+            node.populateTableGroup(table_dialog.getWidth(), table_dialog.getHeight(),
+                                    ContentNodeType.MATH_TABLE_ROW, ContentNodeType.MATH_TABLE_CELL);
+            content.updateModel(node, false);
+            if (auto_select) {
+                editor.setBuffer(content.current_node.buffer);
+                updateContext();
+            } else {
+                content.updateView(editor);
+            }
+        }
+    }
+    */
     void merge_action(gtk.MenuItem.MenuItem item) {
 //        content.merge_current();
     }
 
     void row_activated_action(gtk.TreePath.TreePath path, gtk.TreeViewColumn.TreeViewColumn column, gtk.TreeView.TreeView view) {
-        content.checkOrphans();
+//        content.checkOrphans();
 
 
 
         content.activate(path);
 //        auto editor = cast(gtk.TextView.TextView)builder.getObject("frame-editor");
 //        editor.setBuffer(content.current_node.buffer);
-        content.updateView(editor);
+//        content.updateView(editor);
         updateContext();
         /*
         if (content.current_node.orphan_count > 0) {
@@ -1039,10 +1175,27 @@ class Present {
                 content.current_node.resizeTable(table_dialog.getWidth(), table_dialog.getHeight());
                 content.updateDisplayName(content.current_node);
             } else if (content.current_node.type == ContentNodeType.TABLE_GROUP) {
-                content.current_node.resizeTableGroup(table_dialog.getWidth(), table_dialog.getHeight());
+                content.current_node.resizeTableGroup(table_dialog.getWidth(), table_dialog.getHeight(),
+                                                      ContentNodeType.TABLE_ROW, ContentNodeType.TABLE_CELL);
                 content.updateModel(content.current_node);
             }
             updateContext();
+        }
+    }
+
+    void properties_math_table_size_action(gtk.MenuItem.MenuItem item) {
+        if (content.current_node.context != ContextType.MATH_TABLE)
+            return;
+
+        if (table_dialog.runSize()) {
+            auto table = content.current_node.findParent(ContentNodeType.MATH_TABLE);
+
+            if (table is null)
+                return;
+
+            table.resizeTableGroup(table_dialog.getWidth(), table_dialog.getHeight(),
+                                   ContentNodeType.MATH_TABLE_ROW, ContentNodeType.MATH_TABLE_CELL);
+            content.updateModel(table);
         }
     }
 
@@ -1070,7 +1223,8 @@ class Present {
                 content.current_node.type = ContentNodeType.TABLE_GROUP;
                 content.current_node.children = [];
                 content.current_node.clearBuffer();
-                content.current_node.populateTableGroup(table_dialog.getWidth(), table_dialog.getHeight());
+                content.current_node.populateTableGroup(table_dialog.getWidth(), table_dialog.getHeight(),
+                                                        ContentNodeType.TABLE_ROW, ContentNodeType.TABLE_CELL);
 
                 content.updateModel(content.current_node);
             }
@@ -1159,6 +1313,21 @@ class Present {
         }
     }
 
+    void properties_animate_add_view_action(gtk.MenuItem.MenuItem item) {
+        if (content.current_node.context != ContextType.ANIM_GROUP)
+            return;
+
+        auto over = content.current_node.findParent(ContentNodeType.OVERPRINT);
+
+        auto view = content.insertNodeAtCursor(over, ContentNodeType.ONSLIDE);
+
+        if (auto_select) {
+            content.current_node = view;
+            viewCurrent();
+            updateContext();
+        }
+    }
+
     void tree_drag_data_get_action(gdk.DragContext.DragContext context, gtk.SelectionData.SelectionData selection, uint info, uint time, gtk.Widget.Widget widget) {
         auto s = tree_view.getSelection();
         auto iter = s.getSelected();
@@ -1215,6 +1384,7 @@ class Present {
         tree_view.expandToPath(content.current_node.path);
         tree_view.setCursor(content.current_node.path, name_column, 0);
         editor.setBuffer(content.current_node.buffer);
+        editor.grabFocus();
     }
 }
 

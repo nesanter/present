@@ -71,6 +71,9 @@ enum ContentNodeType {
     TIKZ_PICTURE,
     TIKZ_ELEMENT,
     TIKZ_TEXT_ELEMENT,
+    MATH_TABLE,
+    MATH_TABLE_ROW,
+    MATH_TABLE_CELL,
     DUMMY
 }
 
@@ -118,7 +121,9 @@ class ContentNode {
 
     string list_type;
 
-    string tikz_properties;
+//    string tikz_properties;
+
+    string math_environment;
 
 //    int[string] children_type_count;
 
@@ -134,7 +139,7 @@ class ContentNode {
                                   ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
                                   ContentNodeType.LISTING, ContentNodeType.FRAME_TITLE,
                                   ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE,
-                                  ContentNodeType.OVERPRINT ],
+                                  ContentNodeType.OVERPRINT, ContentNodeType.MATH_TABLE ],
         ContentNodeType.FRAME_TITLE : [ ],
         ContentNodeType.MATH : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC,
                                  ContentNodeType.OVERPRINT ],
@@ -153,7 +158,8 @@ class ContentNode {
         */
         ContentNodeType.LIST : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
                                  ContentNodeType.TABLE, ContentNodeType.OVERPRINT,
-                                 ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
+                                 ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE,
+                                 ContentNodeType.MATH_TABLE ],
         ContentNodeType.TABLE : [ ],
         ContentNodeType.TABLE_GROUP : [ ],
         ContentNodeType.TABLE_ROW : [ ],
@@ -164,7 +170,8 @@ class ContentNode {
                                    ContentNodeType.LIST,
                                    ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
                                    ContentNodeType.LISTING, ContentNodeType.OVERPRINT,
-                                   ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
+                                   ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE,
+                                   ContentNodeType.MATH_TABLE ],
         ContentNodeType.LISTING : [ ],
         ContentNodeType.GRAPHIC : [ ContentNodeType.PROPERTY ],
         ContentNodeType.PROPERTY : [ ],
@@ -172,10 +179,15 @@ class ContentNode {
         ContentNodeType.ONSLIDE : [ ContentNodeType.MATH, ContentNodeType.MATH_INLINE,
                                     ContentNodeType.TABLE, ContentNodeType.COLUMN_GROUP,
                                     ContentNodeType.LIST, ContentNodeType.LISTING,
-                                    ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE ],
+                                    ContentNodeType.GRAPHIC, ContentNodeType.TIKZ_PICTURE,
+                                    ContentNodeType.MATH_TABLE ],
         ContentNodeType.TIKZ_PICTURE : [ ContentNodeType.TIKZ_ELEMENT ],
         ContentNodeType.TIKZ_ELEMENT : [ ],
         ContentNodeType.TIKZ_TEXT_ELEMENT : [ ContentNodeType.MATH_INLINE ],
+        ContentNodeType.MATH_TABLE : [ ],
+        ContentNodeType.MATH_TABLE_ROW : [ ContentNodeType.MATH ],
+        ContentNodeType.MATH_TABLE_CELL : [ ContentNodeType.MATH_GROUP, ContentNodeType.STATIC,
+                                            ContentNodeType.OVERPRINT ],
         ContentNodeType.DUMMY : [ ]
     ];
 
@@ -343,6 +355,26 @@ class ContentNode {
                     }
                 case ContentNodeType.TIKZ_TEXT_ELEMENT:
                     return "#0;";
+                case ContentNodeType.MATH_TABLE:
+                    string s = "\\begin{"~math_environment~"}\n#1;";
+                    foreach (n; 1 .. children.length) {
+                        s ~= " \\\\\n#"~to!string(n+1)~";";
+                    }
+                    return s ~ "\n\\end{"~math_environment~"}\n";
+                case ContentNodeType.MATH_TABLE_ROW:
+                    string s = "#1;";
+                    foreach (n; 1 .. children.length) {
+                        s ~= " & #"~to!string(n+1)~";";
+                    }
+                    if (top)
+                        return "\\begin{"~parent.math_environment~"}\n"~s~"\\end{"~parent.math_environment~"}\n";
+                    else
+                        return s;
+                case ContentNodeType.MATH_TABLE_CELL:
+                    if (top)
+                        return "\\(#0;\\)";
+                    else
+                        return "#0;";
             }
         }
     }
@@ -436,6 +468,15 @@ class ContentNode {
                 case ContentNodeType.TIKZ_TEXT_ELEMENT:
                     s = "Text Element";
                     break;
+                case ContentNodeType.MATH_TABLE:
+                    s = "Math Table";
+                    break;
+                case ContentNodeType.MATH_TABLE_ROW:
+                    s = "Row";
+                    break;
+                case ContentNodeType.MATH_TABLE_CELL:
+                    s = "Math Cell";
+                    break;
             }
         }
 
@@ -517,6 +558,12 @@ class ContentNode {
                     return "element";
                 case ContentNodeType.TIKZ_TEXT_ELEMENT:
                     return "text";
+                case ContentNodeType.MATH_TABLE:
+                    return "math_table";
+                case ContentNodeType.MATH_TABLE_ROW:
+                    return "row";
+                case ContentNodeType.MATH_TABLE_CELL:
+                    return "math";
             }
         }
         return s;
@@ -532,6 +579,8 @@ class ContentNode {
             case ContentNodeType.COLUMN_GROUP:
             case ContentNodeType.OVERPRINT:
             case ContentNodeType.GRAPHIC:
+            case ContentNodeType.MATH_TABLE:
+            case ContentNodeType.MATH_TABLE_ROW:
                 return false;
             case ContentNodeType.FRAME:
             case ContentNodeType.FRAME_TITLE:
@@ -553,6 +602,7 @@ class ContentNode {
             case ContentNodeType.TIKZ_PICTURE:
             case ContentNodeType.TIKZ_ELEMENT:
             case ContentNodeType.TIKZ_TEXT_ELEMENT:
+            case ContentNodeType.MATH_TABLE_CELL:
                 return true;
         }
     }
@@ -578,6 +628,9 @@ class ContentNode {
             case ContentNodeType.TIKZ_PICTURE:
             case ContentNodeType.TIKZ_ELEMENT:
             case ContentNodeType.TIKZ_TEXT_ELEMENT:
+            case ContentNodeType.MATH_TABLE:
+            case ContentNodeType.MATH_TABLE_ROW:
+            case ContentNodeType.MATH_TABLE_CELL:
                 return true;
             case ContentNodeType.OVERPRINT:
             case ContentNodeType.ONSLIDE:
@@ -1225,6 +1278,7 @@ class ContentNode {
             case ContentNodeType.MATH:
             case ContentNodeType.MATH_INLINE:
             case ContentNodeType.MATH_GROUP:
+            case ContentNodeType.MATH_TABLE_CELL:
                 return ContextType.MATH;
             /*
             case ContentNodeType.LIST_ITEM:
@@ -1249,6 +1303,9 @@ class ContentNode {
             case ContentNodeType.TIKZ_ELEMENT:
             case ContentNodeType.TIKZ_TEXT_ELEMENT:
                 return ContextType.TIKZ;
+            case ContentNodeType.MATH_TABLE:
+            case ContentNodeType.MATH_TABLE_ROW:
+                return ContextType.MATH_TABLE;
         }
     }
 
@@ -1278,10 +1335,10 @@ class ContentNode {
 
         addChild(group, iter);
 
-        group.populateTableGroup(width, height);
+        group.populateTableGroup(width, height, ContentNodeType.TABLE_ROW, ContentNodeType.TABLE_CELL);
     }
 
-    void populateTableGroup(int width, int height) {
+    void populateTableGroup(int width, int height, ContentNodeType row_type, ContentNodeType cell_type) {
         table_width = width;
         table_height = height;
 
@@ -1290,12 +1347,12 @@ class ContentNode {
         buffer.getStartIter(rowiter);
 
         foreach (row; 0 .. table_height) {
-            auto node = app.content.createNode(ContentNodeType.TABLE_ROW);
+            auto node = app.content.createNode(row_type);
             addChild(node, rowiter);
 
             node.buffer.getStartIter(coliter);
             foreach (col; 0 .. table_width) {
-                auto cell = app.content.createNode(ContentNodeType.TABLE_CELL);
+                auto cell = app.content.createNode(cell_type);
                 node.addChild(cell, coliter);
             }
         }
@@ -1306,7 +1363,7 @@ class ContentNode {
         table_height = height;
     }
 
-    void resizeTableGroup(int width, int height) {
+    void resizeTableGroup(int width, int height, ContentNodeType row_type, ContentNodeType cell_type) {
         if (height < table_height) {
             foreach (row; height .. table_height) {
                 removeChild(children[row]);
@@ -1316,7 +1373,7 @@ class ContentNode {
             auto rowiter = new gtk.TextIter.TextIter();
             buffer.getEndIter(rowiter);
             foreach (row; table_height .. height) {
-                auto node = app.content.createNode(ContentNodeType.TABLE_ROW);
+                auto node = app.content.createNode(row_type);
                 addChild(node, rowiter);
             }
         }
@@ -1333,7 +1390,7 @@ class ContentNode {
             foreach (row; 0 .. height) {
                 children[row].buffer.getEndIter(coliter);
                 while(children[row].children.length < width) {
-                    auto node = app.content.createNode(ContentNodeType.TABLE_CELL);
+                    auto node = app.content.createNode(cell_type);
                     children[row].addChild(node, coliter);
                 }
             }
@@ -1731,7 +1788,7 @@ enum AlphaList = ListProperties([
         "FinalMark1" : "{)}",
         "FinalMark2" : ".",
         "Mark" : "",
-        "Progressive" : "0.5cm",
+        "Progressive*" : "0.5cm",
         "Hide2" : "1",
         "Start1" : "1"
 ]);
@@ -1742,7 +1799,7 @@ enum EnumeratedList = ListProperties([
         "FinalMark1" : ".",
         "FinalMark2" : "{)}",
         "Mark" : "",
-        "Progressive" : "0.5cm",
+        "Progressive*" : "0.5cm",
         "Hide2" : "1",
         "Start1" : "1"
 ]);
@@ -1751,7 +1808,7 @@ enum ItemizedList = ListProperties([
         "Style1*" : "\\textbullet\\hskip .5em",
         "Style2*" : "--\\hskip .5em",
         "Mark" : "",
-        "Progressive" : "0.5cm",
+        "Progressive*" : "0.5cm",
         "Hang" : "true",
         "Hide" : "1000",
         "Start1" : "1"

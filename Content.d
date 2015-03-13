@@ -428,8 +428,8 @@ class Content {
         updateDisplayName(node);
     }
 
-    void updateView(gsv.SourceView.SourceView view) {
-        view.setBuffer(current_node.buffer);
+//    void updateView(gsv.SourceView.SourceView view) {
+//        view.setBuffer(current_node.buffer);
         /*
         foreach (child; current_node.children) {
             if (child.orphan)
@@ -440,7 +440,7 @@ class Content {
             child.inline_widget.show();
         }
         */
-    }
+//    }
 
     void checkOrphans() {
         /*
@@ -633,10 +633,12 @@ class Content {
     }
 
     void outputPreamble(File f) {
+        f.writeln("\\nonstopmode");
         f.writeln("\\documentclass[t]{beamer}");
         f.writeln("\\usefonttheme[onlymath]{serif}");
         f.writeln("\\setbeamertemplate{navigation symbols}{}");
         f.writeln("\\usepackage{lmodern}");
+        f.writeln("\\usepackage{amsmath}");
         f.writeln("\\usepackage[at]{easylist}");
         f.writeln("\\usepackage{multirow}");
         f.writeln("\\usepackage{graphicx}");
@@ -657,6 +659,8 @@ class Content {
         if (root is null) {
             outputPreamble(f);
             f.writeln("\\begin{document}");
+            f.writeln("\\setlength{\\abovedisplayskip}{2pt}");
+            f.writeln("\\setlength{\\belowdisplayskip}{4pt}");
             foreach (child; root_node.children) {
                 child.outputLatex(f, true);
             }
@@ -664,12 +668,16 @@ class Content {
         } else if (root.type == ContentNodeType.FRAME) {
             outputPreamble(f);
             f.writeln("\\begin{document}");
+            f.writeln("\\setlength{\\abovedisplayskip}{2pt}");
+            f.writeln("\\setlength{\\belowdisplayskip}{4pt}");
             root.outputLatex(f, true);
             f.writeln("\\end{document}");
         } else {
             outputPreviewPreamble(f);
             f.writeln("\\begin{document}");
             f.writeln("\\begin{preview}");
+            f.writeln("\\setlength{\\abovedisplayskip}{2pt}");
+            f.writeln("\\setlength{\\belowdisplayskip}{4pt}");
             root.outputLatex(f, true);
             f.writeln("\\end{preview}");
             f.writeln("\\end{document}");
@@ -680,7 +688,7 @@ class Content {
         auto copy = createNode(node.type);
 
         if (copy_text) {
-            //copy the text
+            copy.buffer.setText(node.buffer.getText());
         }
 
         auto iter = new gtk.TextIter.TextIter();
